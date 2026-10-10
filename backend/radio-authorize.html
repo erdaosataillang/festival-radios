@@ -31,7 +31,7 @@
     import {signInFirebaseWithLine} from "./js/line-firebase-auth.js";
 
     const endpoint = "https://asia-northeast1-urakata-app.cloudfunctions.net/festivalRadioApi/auth/code";
-    const allowedRedirect = "https://erdaosataillang.github.io/festival-radios/";
+    const allowedRedirects = new Set(["https://erdaosataillang.github.io/festival-radios/", "https://lmc-festival-radios.brisk-puppy-2157.chatgpt.site/"]);
     const params = new URLSearchParams(location.search);
     const fail = message => {
       document.getElementById("spinner").style.display = "none";
@@ -46,7 +46,7 @@
       const state = params.get("state");
       const codeChallenge = params.get("code_challenge");
       if (params.get("response_type") !== "code" || clientId !== "festival-radio" ||
-          redirectUri !== allowedRedirect || !state || !/^[A-Za-z0-9_-]{20,128}$/.test(state) ||
+          !allowedRedirects.has(redirectUri) || !state || !/^[A-Za-z0-9_-]{20,128}$/.test(state) ||
           params.get("code_challenge_method") !== "S256" || !/^[A-Za-z0-9_-]{43}$/.test(codeChallenge || "")) {
         throw new Error("トランシーバー管理からの認証情報が正しくありません。トランシーバー管理のログイン画面からやり直してください。");
       }

@@ -9,7 +9,8 @@ const {safeEqual,sha256Base64Url,validPkceChallenge,validPkceVerifier}=require('
 const {fail,validId,profile,validate,publicRadio}=require('./radio-validation');
 const REDIRECT='https://erdaosataillang.github.io/festival-radios/';
 const ACCOUNT_ORIGIN='https://lmc-mobile.sorairosystem.com';
-const allowed=new Set([ACCOUNT_ORIGIN,new URL(REDIRECT).origin,'http://localhost:5173','http://127.0.0.1:5173']);
+const redirects=new Set([REDIRECT,'https://lmc-festival-radios.brisk-puppy-2157.chatgpt.site/']);
+const allowed=new Set([ACCOUNT_ORIGIN,...[...redirects].map(u=>new URL(u).origin),'http://localhost:5173','http://127.0.0.1:5173']);
 async function identity(req){let claims;try{claims=await getAuth().verifyIdToken((req.get('authorization')||'').replace(/^Bearer\s+/i,''),true);}catch{fail(401,'アカウントでログインしてください。');}if(claims.line!==true||claims.registered!==true)fail(403,'登録アカウントが必要です。');const s=await getFirestore().doc(`users/${claims.uid}`).get();const p=s.exists?profile(claims.uid,s.data()):null;if(!p)fail(403,'このアカウントは利用できません。');return p;}
 exports.festivalRadioApi=onRequest({region:'asia-northeast1',memory:'256MiB',timeoutSeconds:30,maxInstances:10},async(req,res)=>{
  const origin=req.get('origin');res.set('Cache-Control','no-store');if(allowed.has(origin)){res.set('Access-Control-Allow-Origin',origin);res.set('Vary','Origin');}res.set('Access-Control-Allow-Headers','Content-Type, Authorization');res.set('Access-Control-Allow-Methods','GET, POST, PATCH, OPTIONS');
@@ -17,12 +18,12 @@ exports.festivalRadioApi=onRequest({region:'asia-northeast1',memory:'256MiB',tim
  const db=getFirestore(),body=req.body||{};
  try{
   if(req.method==='POST'&&req.path==='/auth/code'){
-   if(origin!==ACCOUNT_ORIGIN||body.clientId!=='festival-radio'||body.redirectUri!==REDIRECT||body.codeChallengeMethod!=='S256'||!validPkceChallenge(body.codeChallenge))fail(400,'認証要求が正しくありません。');
-   const p=await identity(req),code=randomBytes(32).toString('base64url');await db.doc(`radioAuthorizationCodes/${sha256Base64Url(code)}`).create({uid:p.id,redirectUri:REDIRECT,codeChallenge:body.codeChallenge,expiresAt:Timestamp.fromMillis(Date.now()+60000)});res.json({code});return;
+   if(origin!==ACCOUNT_ORIGIN||body.clientId!=='festival-radio'||!redirects.has(body.redirectUri)||body.codeChallengeMethod!=='S256'||!validPkceChallenge(body.codeChallenge))fail(400,'認証要求が正しくありません。');
+   const p=await identity(req),code=randomBytes(32).toString('base64url');await db.doc(`radioAuthorizationCodes/${sha256Base64Url(code)}`).create({uid:p.id,redirectUri:body.redirectUri,codeChallenge:body.codeChallenge,expiresAt:Timestamp.fromMillis(Date.now()+60000)});res.json({code});return;
   }
   if(req.method==='POST'&&req.path==='/auth/exchange'){
-   if(typeof body.code!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(body.code)||!validPkceVerifier(body.codeVerifier)||body.redirectUri!==REDIRECT)fail(400,'認証情報が正しくありません。');
-   const ref=db.doc(`radioAuthorizationCodes/${sha256Base64Url(body.code)}`);const uid=await db.runTransaction(async t=>{const s=await t.get(ref);if(!s.exists||s.get('redirectUri')!==REDIRECT||!s.get('expiresAt')||s.get('expiresAt').toMillis()<=Date.now()||!safeEqual(sha256Base64Url(body.codeVerifier),s.get('codeChallenge')))fail(401,'ログインの有効期限が切れました。再度ログインしてください。');t.delete(ref);return s.get('uid');});const s=await db.doc(`users/${uid}`).get();if(!s.exists||!profile(uid,s.data()))fail(403,'利用可能なアカウントがありません。');res.json({customToken:await getAuth().createCustomToken(uid,{line:true,registered:true})});return;
+   if(typeof body.code!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(body.code)||!validPkceVerifier(body.codeVerifier)||!redirects.has(body.redirectUri))fail(400,'認証情報が正しくありません。');
+   const ref=db.doc(`radioAuthorizationCodes/${sha256Base64Url(body.code)}`);const uid=await db.runTransaction(async t=>{const s=await t.get(ref);if(!s.exists||s.get('redirectUri')!==body.redirectUri||!s.get('expiresAt')||s.get('expiresAt').toMillis()<=Date.now()||!safeEqual(sha256Base64Url(body.codeVerifier),s.get('codeChallenge')))fail(401,'ログインの有効期限が切れました。再度ログインしてください。');t.delete(ref);return s.get('uid');});const s=await db.doc(`users/${uid}`).get();if(!s.exists||!profile(uid,s.data()))fail(403,'利用可能なアカウントがありません。');res.json({customToken:await getAuth().createCustomToken(uid,{line:true,registered:true})});return;
   }
   // 公開読み取りはユーザー情報コレクションと分離する。
   if(req.method==='GET'&&req.path==='/radios'){const s=await db.collection('festivalRadios').orderBy('__name__').limit(1000).get();res.json({radios:s.docs.map(publicRadio)});return;}
