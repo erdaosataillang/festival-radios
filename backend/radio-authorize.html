@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <title>トランシーバー管理認証</title>
+  <style>
+    :root{color-scheme:light;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f4f7fb;color:#172033}
+    *{box-sizing:border-box}body{margin:0;min-height:100dvh;display:grid;place-items:center;padding:24px}
+    main{width:min(100%,420px);background:#fff;border-radius:24px;padding:34px 28px;box-shadow:0 18px 55px #2942611c;text-align:center}
+    .mark{width:64px;height:64px;margin:auto;border-radius:22px;display:grid;place-items:center;background:#06c755;color:#fff;font-size:30px;font-weight:800}
+    h1{font-size:22px;margin:22px 0 8px}p{font-size:14px;line-height:1.7;color:#667085;margin:0}
+    .spinner{width:28px;height:28px;border:3px solid #dfe6ef;border-top-color:#06c755;border-radius:50%;margin:26px auto 0;animation:spin .8s linear infinite}
+    .error{color:#b42318;background:#fef3f2;border-radius:12px;padding:12px;margin-top:20px;display:none}
+    @keyframes spin{to{transform:rotate(360deg)}}
+  </style>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+</head>
+<body>
+  <main>
+    <div class="mark">↟</div>
+    <h1>アカウントを確認しています</h1>
+    <p>確認後、安全にトランシーバー管理へ移動します。</p>
+    <div class="spinner" id="spinner"></div>
+    <p class="error" id="error"></p>
+  </main>
+  <script type="module">
+    import {auth, MY_LIFF_ID} from "./js/common.js";
+    import {signInWithCustomToken} from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+    import {signInFirebaseWithLine} from "./js/line-firebase-auth.js";
+
+    const endpoint = "https://asia-northeast1-urakata-app.cloudfunctions.net/festivalRadioApi/auth/code";
+    const allowedRedirect = "https://erdaosataillang.github.io/festival-radios/";
+    const params = new URLSearchParams(location.search);
+    const fail = message => {
+      document.getElementById("spinner").style.display = "none";
+      const error = document.getElementById("error");
+      error.textContent = message;
+      error.style.display = "block";
+    };
+
+    async function authorize() {
+      const clientId = params.get("client_id");
+      const redirectUri = params.get("redirect_uri");
+      const state = params.get("state");
+      const codeChallenge = params.get("code_challenge");
+      if (params.get("response_type") !== "code" || clientId !== "festival-radio" ||
+          redirectUri !== allowedRedirect || !state || !/^[A-Za-z0-9_-]{20,128}$/.test(state) ||
+          params.get("code_challenge_method") !== "S256" || !/^[A-Za-z0-9_-]{43}$/.test(codeChallenge || "")) {
+        throw new Error("トランシーバー管理からの認証情報が正しくありません。トランシーバー管理のログイン画面からやり直してください。");
+      }
+      await liff.init({liffId: MY_LIFF_ID});
+      if (!liff.isLoggedIn()) {
+        liff.login({redirectUri: location.href});
+        return;
+      }
+      const profile = await liff.getProfile();
+      const user = await signInFirebaseWithLine(auth, signInWithCustomToken, profile.userId);
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {"Content-Type": "application/json", "Authorization": `Bearer ${await user.getIdToken(true)}`},
+        cache: "no-store",
+        body: JSON.stringify({
+          clientId,
+          redirectUri,
+          codeChallenge,
+          codeChallengeMethod: "S256",
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.code) throw new Error("登録ユーザーを確認できませんでした。");
+      const destination = new URL(redirectUri);
+      destination.searchParams.set("auth_code", result.code);
+      destination.searchParams.set("state", state);
+      location.replace(destination.toString());
+    }
+
+    authorize().catch(error => {
+      console.error(error);
+      fail(error.message || "認証に失敗しました。時間をおいてやり直してください。");
+    });
+  </script>
+</body>
+</html>

@@ -17,7 +17,7 @@
 
 既存のFirebaseプロジェクト `urakata-app` のLINE認証を使います。認証側の `radio-authorize.html` が既存の `js/common.js` と `js/line-firebase-auth.js` を利用して本人確認し、60秒有効・一回限りのPKCE S256コードを発行します。アプリでコードを交換してFirebase Authにログインします。
 
-専用API `lmcRadioApi` は閲覧のみ匿名で許可します。更新はトークン検証・LINE連携済み・登録済みクレーム・現時点の登録ユーザー存在・停止状態を毎回確認します。更新のバージョンが異なる場合は409で上書きを防ぎます。
+専用API `festivalRadioApi` は閲覧のみ匿名で許可します。更新はトークン検証・LINE連携済み・登録済みクレーム・現時点の登録ユーザー存在・停止状態を毎回確認します。更新のバージョンが異なる場合は409で上書きを防ぎます。
 
 データは `festivalRadios`、編集履歴は各機器の `history`、認証コードは `radioAuthorizationCodes` に保存します。既存のユーザー・バンド・予約・イベントは変更しません。既存Firestoreルールのデフォルト拒否によりブラウザからこのコレクションには直接書き込めません。
 
@@ -25,12 +25,12 @@
 
 画面はGitHub Pagesで公開します。バックエンドのみの更新:
 
-    cd lmc-integration
+    cd backend
     npm --prefix functions ci
-    firebase deploy --only functions:lmcRadioApi --project urakata-app
+    firebase deploy --only functions:festivalRadioApi --project urakata-app
 
 テスト:
 
-    node --test lmc-integration/functions/radio-api.test.js lmc-integration/functions/radio-validation.test.js
+    node --test backend/functions/radio-api.test.js backend/functions/radio-validation.test.js
 
 QR生成は qrcode-generator 1.4.4 (MIT) を同梱しています。認証用の秘密鍵やトークンをフロントエンドやソースには保存しません。
