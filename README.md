@@ -34,3 +34,7 @@
     node --test backend/functions/radio-api.test.js backend/functions/radio-validation.test.js
 
 QR生成は qrcode-generator 1.4.4 (MIT) を同梱しています。認証用の秘密鍵やトークンをフロントエンドやソースには保存しません。
+
+## アプリホスト
+
+GitHub Pagesのカスタムドメインは `app.urakatabu.com` です。アプリファイルは `festival-radios/` に配置し、ワークフローがホストの同名フォルダーへ配信します。ルートURLはトランシーバー管理へ移動します。QRとログインの戻り先は `https://app.urakatabu.com/festival-radios/` です。

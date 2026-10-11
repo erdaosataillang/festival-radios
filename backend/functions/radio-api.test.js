@@ -6,3 +6,5 @@ test('Firebaseログインだけでは編集できない',async()=>{assert.equal
 test('登録済み既存システムでも停止中なら拒否',async()=>{assert.equal((await setup({claims:{uid:'u',line:true,registered:true},profile:{name:'担当者',disabled:true}})('/me')).code,403);});
 test('許可されていない接続元を拒否',async()=>{assert.equal((await setup()('/radios','GET',{},'https://evil.example')).code,403);});
 test('許可されていない認証戻り先を拒否',async()=>{assert.equal((await setup()('/auth/code','POST',{redirectUri:'https://evil.example'},'https://lmc-mobile.sorairosystem.com')).code,400);});
+
+test("独自ドメインからの匿名閲覧を許可",async()=>{const res=await setup()("/radios","GET",{},"https://app.urakatabu.com");assert.equal(res.code,200);assert.equal(res.headers["Access-Control-Allow-Origin"],"https://app.urakatabu.com");});
