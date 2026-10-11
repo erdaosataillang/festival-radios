@@ -7,9 +7,9 @@ const {getFirestore,Timestamp,FieldValue}=require('firebase-admin/firestore');
 const {randomBytes}=require('node:crypto');
 const {safeEqual,sha256Base64Url,validPkceChallenge,validPkceVerifier}=require('./pkce');
 const {fail,validId,profile,validate,publicRadio}=require('./radio-validation');
-const REDIRECT='https://erdaosataillang.github.io/festival-radios/';
+const REDIRECT='https://app.urakatabu.com/festival-radios/';
 const ACCOUNT_ORIGIN='https://lmc-mobile.sorairosystem.com';
-const redirects=new Set([REDIRECT,'https://lmc-festival-radios.brisk-puppy-2157.chatgpt.site/']);
+const redirects=new Set([REDIRECT,'https://erdaosataillang.github.io/festival-radios/','https://lmc-festival-radios.brisk-puppy-2157.chatgpt.site/']);
 const allowed=new Set([ACCOUNT_ORIGIN,...[...redirects].map(u=>new URL(u).origin),'http://localhost:5173','http://127.0.0.1:5173']);
 async function identity(req){let claims;try{claims=await getAuth().verifyIdToken((req.get('authorization')||'').replace(/^Bearer\s+/i,''),true);}catch{fail(401,'アカウントでログインしてください。');}if(claims.line!==true||claims.registered!==true)fail(403,'登録アカウントが必要です。');const s=await getFirestore().doc(`users/${claims.uid}`).get();const p=s.exists?profile(claims.uid,s.data()):null;if(!p)fail(403,'このアカウントは利用できません。');return p;}
 exports.festivalRadioApi=onRequest({region:'asia-northeast1',memory:'256MiB',timeoutSeconds:30,maxInstances:10},async(req,res)=>{

@@ -19,9 +19,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      - name: Prepare app host
+        run: |
+          mkdir -p public
+          cp -R festival-radios public/festival-radios
+          cp index.html CNAME public/
       - uses: actions/upload-pages-artifact@v4
         with:
-          path: dist
+          path: public
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4

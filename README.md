@@ -2,7 +2,7 @@
 
 閲覧はログイン不要。登録と編集には既存のアカウントが必要です。
 
-公開URL: https://erdaosataillang.github.io/festival-radios/
+公開URL: https://app.urakatabu.com/festival-radios/
 サンプル表示: 公開URLに `?demo=1&radio=A-101` を追加します。サンプルは保存されません。
 
 ## 操作

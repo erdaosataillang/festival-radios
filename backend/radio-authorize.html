@@ -31,7 +31,7 @@
     import {signInFirebaseWithLine} from "./js/line-firebase-auth.js";
 
     const endpoint = "https://asia-northeast1-urakata-app.cloudfunctions.net/festivalRadioApi/auth/code";
-    const allowedRedirects = new Set(["https://erdaosataillang.github.io/festival-radios/", "https://lmc-festival-radios.brisk-puppy-2157.chatgpt.site/"]);
+    const allowedRedirects = new Set(["https://app.urakatabu.com/festival-radios/", "https://erdaosataillang.github.io/festival-radios/", "https://lmc-festival-radios.brisk-puppy-2157.chatgpt.site/"]);
     const params = new URLSearchParams(location.search);
     const fail = message => {
       document.getElementById("spinner").style.display = "none";
