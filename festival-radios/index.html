@@ -1,6 +1,6 @@
 <!doctype html>
-<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#8e303d"><title>文化祭トランシーバー管理</title><link rel="stylesheet" href="style.css?v=20261012-admin"></head>
-<body><header><a href="./" class="brand"><img class="brand-logo" width="48" height="48" src="urakata_logo.svg" alt="裏方部"></a><div class="header-actions"><button id="manage" class="light">管理画面</button><button id="login" class="light">ログイン <span>↗</span></button></div></header>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#8e303d"><title>文化祭トランシーバー管理</title><link rel="stylesheet" href="style.css?v=20261015-guide"></head>
+<body><header><a href="./" class="brand"><img class="brand-logo" width="48" height="48" src="urakata_logo.svg" alt="裏方部"></a><div class="header-actions"><button id="guide-open" class="light">使い方</button><button id="manage" class="light">管理画面</button><button id="login" class="light">ログイン <span>↗</span></button></div></header>
 <main><div class="eyebrow">裏方部</div><div class="titlebar"><div><h1 id="pageheading">トランシーバー管理</h1></div><span class="viewbadge" id="viewbadge">◉ 閲覧モード</span></div>
 <div id="notice" class="notice" role="status" aria-live="polite"></div>
 <section class="toolbar"><label class="search"><span>⌕</span><input id="search" type="search" placeholder="管理番号・部署・担当者を検索" aria-label="機器を検索"></label><select id="filter" aria-label="状態で絞り込む"><option value="">すべての状態</option><option>貸出中</option><option>保管中</option><option>点検中</option></select><button id="add" hidden>＋ 機器を登録</button></section>
@@ -20,4 +20,22 @@
 </section>
 <footer><span>裏方部 トランシーバー管理</span><span>編集にはアカウントが必要です</span></footer></main>
 <dialog id="editor"><form id="form"><div class="sectionhead"><h2 id="formtitle">機器情報を編集</h2><button type="button" id="close" class="icon" aria-label="閉じる">×</button></div><p class="muted">保存するとQRのリンク先にも反映されます。</p><label>管理番号<input name="id" required maxlength="30" pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,29}" placeholder="A-101"></label><div class="formgrid"><label>セクション<input name="department" maxlength="80" placeholder="本部"></label><label>チャンネル<input name="channel" maxlength="20" placeholder="10"></label></div><div class="formgrid"><label>No.<input name="number" maxlength="6" pattern="[1-9][0-9]{0,5}" inputmode="numeric"></label><label>所属<input name="affiliation" maxlength="80"></label></div><label>担当者名<input name="assignee" maxlength="80" placeholder="未割当の場合は空欄"></label><label>状態<select name="status"><option>保管中</option><option>貸出中</option><option>点検中</option></select></label><label>備考<textarea name="note" maxlength="1000" rows="3"></textarea></label><p class="muted">担当者名・備考はログインなしで閲覧できます。</p><p id="formerror" role="alert"></p><button type="submit" id="save">変更を保存</button></form></dialog>
-<script src="qrcode.js"></script><script type="module" src="app.js?v=20261012-admin"></script></body></html>
+
+<dialog id="guide" aria-labelledby="guide-title">
+ <div class="sectionhead"><div><p class="guide-model">KENWOOD / TCP-D561</p><h2 id="guide-title">トランシーバーの使い方</h2></div><button type="button" id="guide-close" class="icon" aria-label="使い方を閉じる">×</button></div>
+ <p id="guide-current" class="guide-current"></p>
+ <h3>まずはこの5ステップ</h3>
+ <ol class="guide-steps">
+ <li><strong>電源を入れて音量を調整</strong><p>上部の電源／音量ツマミを右へ回します。音量は右で大きく、左で小さくなります。</p></li>
+ <li><strong>指定のチャンネルに合わせる</strong><p>前面の▲／▼キーで、管理タグ・機器詳細のCh.に合わせます。画面の情報を変えても、無線機の設定は変わりません。</p></li>
+ <li><strong>相手の話が終わるまで待つ</strong><p>緑色の受信LEDが消えてから、側面のPTTを押します。送信中は赤色になります。</p></li>
+ <li><strong>PTTを押しながら話す</strong><p>マイクを口から3〜4cm離し、普通の声で話します。話し終わったらPTTを離して返事を聞きます。これはPTTホールドがオフの場合の操作です。</p></li>
+ <li><strong>使用後は電源を切る</strong><p>電源／音量ツマミを左へ、カチッと止まるまで回します。</p></li>
+ </ol>
+ <details class="guide-faq"><summary>聞こえない・送信できないとき</summary><ul><li>電源・音量・電池残量と、相手と同じチャンネルかを確認します。</li><li>「ビジー」と出たら他の通信が終わるまで待ちます。</li><li>チャンネルが同じでも、ユーザーコード（UC）や秘話の設定が違うと通話できない場合があります。設定変更は裏方部に確認してください。</li></ul></details>
+ <details class="guide-faq"><summary>充電・取り扱い</summary><p>指定の充電器を使用してください。本体・電池が濡れた状態で充電しないでください。異常な発熱・臭い・破損があれば使用を中止し、裏方部へ連絡してください。</p></details>
+ <details class="guide-faq"><summary>このアプリの使い方</summary><ul><li>管理タグのQRから、その機器の担当・チャンネルをログインなしで確認できます。</li><li>登録・編集はログイン後に行います。管理画面ではCSVの取り込みプレビューを確認してから登録できます。</li><li>機器を選び直すと、その機器のQRと情報が表示されます。</li></ul></details>
+ <p class="muted">機器の設定によってキーの動作が異なる場合があります。実機の表示と裏方部の案内を確認してください。</p>
+ <div class="guide-sources"><h3>メーカー公式の取扱説明書</h3><a href="https://manuals.jvckenwood.com/download/files/B5A-3707-20.pdf" target="_blank" rel="noopener noreferrer">基本編（PDF） ↗</a><a href="https://manuals.jvckenwood.com/download/files/B5A-3792-00_06.pdf#page=15" target="_blank" rel="noopener noreferrer">詳細編（PDF・操作方法15〜19ページ） ↗</a><p class="muted">TCP-D561／TCP-D561BT共通の説明書です。Bluetooth機能はBTモデルのみ対応します。上の説明は公式説明書をもとに裏方部向けに要約しています。</p></div>
+</dialog>
+<script src="qrcode.js"></script><script type="module" src="app.js?v=20261015-guide"></script></body></html>
