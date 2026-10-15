@@ -25,6 +25,7 @@ exports.festivalRadioApi=onRequest({region:'asia-northeast1',memory:'256MiB',tim
    if(typeof body.code!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(body.code)||!validPkceVerifier(body.codeVerifier)||!redirects.has(body.redirectUri))fail(400,'認証情報が正しくありません。');
    const ref=db.doc(`radioAuthorizationCodes/${sha256Base64Url(body.code)}`);const uid=await db.runTransaction(async t=>{const s=await t.get(ref);if(!s.exists||s.get('redirectUri')!==body.redirectUri||!s.get('expiresAt')||s.get('expiresAt').toMillis()<=Date.now()||!safeEqual(sha256Base64Url(body.codeVerifier),s.get('codeChallenge')))fail(401,'ログインの有効期限が切れました。再度ログインしてください。');t.delete(ref);return s.get('uid');});const s=await db.doc(`users/${uid}`).get();if(!s.exists||!profile(uid,s.data()))fail(403,'利用可能なアカウントがありません。');res.json({customToken:await getAuth().createCustomToken(uid,{line:true,registered:true})});return;
   }
+  if(req.method==='GET'&&req.path==='/channel-plan'){const s=await db.doc('festivalRadioSettings/channelPlan').get();res.json({channels:s.exists?s.get('channels')||[]:[]});return;}
   // 公開読み取りはユーザー情報コレクションと分離する。
   if(req.method==='GET'&&req.path==='/radios'){const s=await db.collection('festivalRadios').orderBy('__name__').limit(1000).get();res.json({radios:s.docs.map(publicRadio)});return;}
   const match=req.path.match(/^\/radios\/([A-Z0-9][A-Z0-9_-]{0,29})$/);
