@@ -72,9 +72,9 @@ GitHub Pagesのカスタムドメインは `app.urakatabu.com` です。アプ�
 
 ## 領収書のログインと発行認証
 
-領収書の操作画面は、LMCの登録済みLINEアカウントでログインすると表示されます。GitHub Pagesの静的ファイル自体は公開配信です。発行APIはFirebase IDトークン、現時点の登録ユーザーと利用停止状態を毎回検証します。`users/{uid}.receiptAccess=false` のユーザーは利用できません。既存の無線APIは変更していません。
+領収書の操作画面は、登録済みの裏方アカウントでログインすると表示されます。GitHub Pagesの静的ファイル自体は公開配信です。発行APIはFirebase IDトークン、現時点の登録ユーザーと利用停止状態を毎回検証します。`users/{uid}.receiptAccess=false` のユーザーは利用できません。既存の無線APIは変更していません。
 
-LMC側の `receipt-authorize.html` と、専用API `receiptApi` をPKCE S256の一度限りの短期認証コードで連携します。パスキー登録には5分以内のLMCログインが必要です。発行には、PDFのSHA-256に紐付いた2分有効の一度限りのWebAuthn認証が必要です。RP IDは `app.urakatabu.com`、OriginはHTTPSの同ホストに固定し、User Verificationを必須にしています。顔・指紋または端末のPINなど、実際の方法は端末に依存します。生体情報は取得しません。
+LMC側の `receipt-authorize.html` と、専用API `receiptApi` をPKCE S256の一度限りの短期認証コードで連携します。パスキー登録には5分以内の裏方アカウントログインが必要です。発行には、PDFのSHA-256に紐付いた2分有効の一度限りのWebAuthn認証が必要です。RP IDは `app.urakatabu.com`、OriginはHTTPSの同ホストに固定し、User Verificationを必須にしています。顔・指紋または端末のPINなど、実際の方法は端末に依存します。生体情報は取得しません。
 
 保存先は専用の `receiptUsers`（公開鍵）、`receiptChallenges`（短期チャレンジ）、`receiptAuthorizationCodes`（ログインコード）、`receiptIssuances`（UID・PDFハッシュ・発行日時）です。PDFファイル本体は保存せず、宛名・金額・但し書き・発行者情報のスナップショットとPDFハッシュを保存します。履歴はFirestoreでアカウントごとに分離しています。パスキーは発行時の本人確認であり、証明書を埋め込むPDF電子署名とは別です。
 
@@ -97,3 +97,11 @@ LMC側の `receipt-authorize.html` と、専用API `receiptApi` をPKCE S256の�
 下書きは `receiptUsers/{uid}/drafts` に保存し、同じ伝票No.・永久伝票No.の下書きは更新します。発行済みは `receiptUsers/{uid}/receipts` に新規記録し、従来の監査記録 `receiptIssuances` とパスキーカウンター更新を同じトランザクションで確定します。過去に発行した内容・発行者は後からのプロフィール変更で更新しません。履歴では最新100件の下書きと最新100件の発行済みを表示します。発行済みの「内容を複製」は新しい伝票番号の入力用コピーであり、過去の発行記録の書き換えではありません。
 
 以前のブラウザ内履歴は削除しません。今回の変更以降に保存・発行した内容がFirebaseの記録対象です。
+
+## 請求書アプリ
+
+公開URL: https://app.urakatabu.com/invoice/ 。領収書とは別のフォルダー・入力画面・履歴を持ち、アプリ一覧から開けます。裏方アカウント、登録済み発行者とパスキーは共通です。請求書では振込先（銀行・支店・種別・口座番号・名義）を発行者プロフィールへ追加します。領収書からプロフィールを変更しても振込先を消しません。
+
+数量・税抜単価から明細金額を算出し、税率0/8/10%を選択できます。数量は小数点以下3桁まで、明細と税額の円未満は切り捨て。ブラウザとAPIは同じ整数計算処理を使います。明細は25行までのA4・1ページです。例の59091円に10%を加えると税込65000円になります。口座番号は文字列で保存し先頭のゼロを保持します。
+
+請求書の下書きは `receiptUsers/{uid}/invoiceDrafts`、発行済みは `receiptUsers/{uid}/invoices` に保存します。領収書の記録とは分離し、監査ログにはdocumentTypeを付けます。請求書専用の認証チャレンジを領収書の発行に流用できません。認証用ページはLMCリポジトリ内の `invoice-authorize.html` です。見本に含まれる個人情報・口座・印影は公開ソースに含めません。

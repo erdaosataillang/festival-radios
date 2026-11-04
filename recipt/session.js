@@ -59,7 +59,7 @@ async function registerPasskey(){
  }catch(error){el('passkey-state').textContent=error.name==='NotAllowedError'?'パスキーの登録を中止しました。':error.message;}finally{button.disabled=false;}
 }
 async function authorizeIssue(blob,receipt){
- if(!profile)throw new Error('LMCアカウントでログインしてください。');
+ if(!profile)throw new Error('裏方アカウントでログインしてください。');
  if(!issuer){editIssuer();throw new Error('先に発行者情報を登録してください。');}
  if(!passkeys){document.getElementById('tab-input').click();el('account-settings').open=true;el('account-settings').scrollIntoView({block:'start',behavior:'smooth'});throw new Error('発行前にパスキーを登録してください。');}
  if(!window.PublicKeyCredential)throw new Error('パスキー対応のSafariまたはChromeで開いてください。');
@@ -86,7 +86,7 @@ async function start(){
   if(!saved||saved.state!==state||Date.now()-saved.at>600000)throw new Error('ログインの確認に失敗しました。もう一度ログインしてください。');
   const result=await api('/auth/exchange',{code,codeVerifier:saved.verifier,redirectUri:REDIRECT});await fb.signInWithCustomToken(auth,result.customToken);
  }
- if(!auth.currentUser){lock('LMCの登録済みアカウントでログインしてください。');return;}
+ if(!auth.currentUser){lock('登録済みの裏方アカウントでログインしてください。');return;}
  const result=await api('/me');profile=result.profile;passkeys=result.passkeys;issuer=result.issuer;describePasskeys();document.body.classList.add('authenticated');
  if(issuer)applyIssuer();else editIssuer();
  window.dispatchEvent(new Event('receipt-auth-ready'));

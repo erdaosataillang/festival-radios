@@ -1,4 +1,20 @@
 [
-  {"id":"festival-radios","title":"トランシーバー管理","description":"機器の登録・貸出状況・チャンネルの確認","icon":"radio"},
-  {"id":"recipt","title":"領収書","description":"領収書の作成・印鑑生成・PDF出力","icon":"receipt"}
+  {
+    "id": "festival-radios",
+    "title": "トランシーバー管理",
+    "description": "機器の登録・貸出状況・チャンネルの確認",
+    "icon": "radio"
+  },
+  {
+    "id": "recipt",
+    "title": "領収書",
+    "description": "領収書の作成・印鑑生成・PDF出力",
+    "icon": "receipt"
+  },
+  {
+    "id": "invoice",
+    "title": "請求書",
+    "description": "明細・支払期限・振込先を入力してPDFを発行",
+    "icon": "receipt"
+  }
 ]

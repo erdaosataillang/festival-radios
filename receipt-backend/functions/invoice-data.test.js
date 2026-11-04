@@ -1,0 +1,11 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const {calculate}=require('./invoice-math'),{invoice,bank}=require('./invoice-data');
+const registered={name:'発行者',address:'テスト住所',phone:'000-0000-0000',version:1,bank:{name:'テスト銀行',branch:'支店',type:'普通',number:'0000001',holder:'テスト'}};
+const input={recipient:'宛先',honorific:'御中',date:'2026-11-05',number:'001',dueDate:'2026-11-30',deliveryDate:'2026-10-31',subject:'作業費',items:[{name:'作業費',quantity:'1',unitPrice:'59091'}],taxRate:10,seal:'hide',sealShape:'round',sealFont:'mincho',signatureMode:'unsigned'};
+test('見本と同じ税計算：59091円＋5909円＝65000円',()=>{const r=calculate(input.items,10);assert.equal(r.subtotal,59091);assert.equal(r.tax,5909);assert.equal(r.total,65000)});
+test('小数数量と切り捨てを整数演算し誤差を出さない',()=>{assert.equal(calculate([{name:'作業',quantity:'0.1',unitPrice:'19'}],10).total,1);assert.equal(calculate([{name:'作業',quantity:'0.333',unitPrice:'3000'}],8).total,1078)});
+test('明細数・数量精度・負数・税率・金額上限を検証',()=>{for(const [items,rate] of [[[],10],[Array(26).fill(input.items[0]),10],[[{quantity:'1.0001',unitPrice:10}],10],[[{quantity:'-1',unitPrice:10}],10],[input.items,20],[[{quantity:'999999.999',unitPrice:999999999}],10]])assert.throws(()=>calculate(items,rate))});
+test('銀行口座の先頭のゼロを保持',()=>{assert.equal(bank(registered.bank).number,'0000001');assert.throws(()=>bank({...registered.bank,number:'123x'}))});
+test('請求書は登録済み発行者と振込先のスナップショットを使う',()=>{const r=invoice({...input,issuer:'偽装'},registered,1);assert.equal(r.issuer,'発行者');assert.equal(r.bank.number,'0000001');assert.equal(r.total,65000);assert.equal(r.documentType,'invoice');assert.throws(()=>invoice(input,{...registered,bank:null},1),e=>e.status===409)});
+test('必須項目と日付・明細名を検証',()=>{for(const changes of [{subject:''},{dueDate:'2026-02-30'},{items:[{name:'',quantity:1,unitPrice:100}]},{items:[{name:'作業',quantity:1,unitPrice:0}]}])assert.throws(()=>invoice({...input,...changes},registered,1))});
+test('ブラウザとサーバーで同じ計算処理を使う',()=>{assert.equal(fs.readFileSync(path.join(__dirname,'invoice-math.js'),'utf8'),fs.readFileSync(path.join(__dirname,'../../invoice/invoice-math.js'),'utf8'))});

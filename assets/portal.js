@@ -18,6 +18,6 @@ if (['radio','demo','view','auth_code','state'].some(key=>parameters.has(key))) 
       text.append(title,description);link.append(icon,text,arrow);return link;
     });root.replaceChildren(...links);
   } catch {
-    root.replaceChildren();for(const [url,title] of [['festival-radios/','トランシーバー管理'],['recipt/','領収書']]){const link=document.createElement('a');link.className='app-link';link.href=url;link.textContent=title;root.append(link);}
+    root.replaceChildren();for(const [url,title] of [['festival-radios/','トランシーバー管理'],['recipt/','領収書'],['invoice/','請求書']]){const link=document.createElement('a');link.className='app-link';link.href=url;link.textContent=title;root.append(link);}
   }
 }
