@@ -37,7 +37,7 @@ QR生成は qrcode-generator 1.4.4 (MIT) を同梱しています。認証用の
 
 ## アプリホスト
 
-GitHub Pagesのカスタムドメインは `app.urakatabu.com` です。アプリファイルは `festival-radios/` に配置し、ワークフローがホストの同名フォルダーへ配信します。ルートURLはトランシーバー管理へ移動します。QRとログインの戻り先は `https://app.urakatabu.com/festival-radios/` です。
+GitHub Pagesのカスタムドメインは `app.urakatabu.com` です。アプリファイルは `festival-radios/` に配置し、ワークフローがホストの同名フォルダーへ配信します。ルートURLにはアプリ一覧を表示します。従来のルートURLに `radio` などが付いた機器リンクはトランシーバー管理へ転送します。QRとログインの戻り先は `https://app.urakatabu.com/festival-radios/` です。
 
 ## 管理画面とCSV
 
@@ -50,3 +50,22 @@ GitHub Pagesのカスタムドメインは `app.urakatabu.com` です。アプ�
 プレビューのエラーがある場合は反映できません。サーバー側でも件数・重複・認証・更新バージョンを検証し、全行と変更履歴を一つのトランザクションで保存します。一行でも競合すると全件を保存せず、プレビューのやり直しを求めます。
 
 テスト: `node --test tests/csv.test.mjs backend/functions/*.test.js`
+
+
+## アプリ一覧と追加方法
+
+- アプリ一覧: https://app.urakatabu.com/
+- トランシーバー管理: https://app.urakatabu.com/festival-radios/
+- 領収書: https://app.urakatabu.com/recipt/
+
+`apps.json` にアプリを登録すると、一覧と公開対象の両方に反映されます。新しいアプリは、`id` と同じ名前のディレクトリーに `index.html` と静的ファイルを配置してください。各アプリ内のリンクやアセットは相対パスを使用します。`backend/` や `tests/` は公開されません。
+
+配信ファイルの確認: `node scripts/prepare-pages.mjs`（生成先 `public/`）。mainへのpush後、GitHub Actionsで公開されます。
+
+### 領収書
+
+宛名・金額・発行者情報を入力し、領収書だけのA4 PDFを出力します。印鑑タブで丸印・角印を生成でき、PNG保存にも対応します。履歴はブラウザ内に保存します。公開版には見本の個人情報・印影は含みません。
+
+電子署名は「印鑑 → PDFの電子署名」で秘密鍵付きRSA証明書（.p12／.pfx）を読み込むと利用できます。証明書とパスワードはサーバーに送信・保存せず、ブラウザのメモリー内でのみ使用します。署名はPKCS#7 detached形式でPDFに埋め込みます。信頼性の確認は対応するPDF閲覧ソフトで行ってください。認証局のタイムスタンプ・長期署名は未対応です。
+
+暗号処理: node-forge 1.4.3（同梱ライセンス: `recipt/vendor/forge-LICENSE.txt`）。

@@ -19,11 +19,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - name: Prepare app host
-        run: |
-          mkdir -p public
-          cp -R festival-radios public/festival-radios
-          cp index.html CNAME public/
+        run: node scripts/prepare-pages.mjs
       - uses: actions/upload-pages-artifact@v4
         with:
           path: public
