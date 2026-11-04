@@ -1,11 +1,11 @@
 const API='https://asia-northeast1-urakata-app.cloudfunctions.net/receiptApi';
 const REDIRECT='https://app.urakatabu.com/recipt/';
 const AUTHORIZE='https://lmc-mobile.sorairosystem.com/receipt-authorize.html';
-let auth,fb,profile=null,passkeys=0;
+let auth,fb,profile=null,passkeys=0,issuer=null;
 const el=id=>document.getElementById(id);
 const encode=bytes=>btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 const decode=value=>Uint8Array.from(atob(value.replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(value.length/4)*4,'=')),c=>c.charCodeAt(0));
-function lock(message){profile=null;document.body.classList.remove('authenticated');el('auth-status').textContent=message;el('login-receipt').disabled=false;}
+function lock(message){profile=null;issuer=null;if(el('issuer-dialog')?.open)el('issuer-dialog').close();document.body.classList.remove('authenticated');el('auth-status').textContent=message;el('login-receipt').disabled=false;}
 async function api(path,body){
  const headers={'Content-Type':'application/json'};if(auth?.currentUser)headers.Authorization='Bearer '+await auth.currentUser.getIdToken();
  const response=await fetch(API+path,{method:body?'POST':'GET',headers,cache:'no-store',body:body?JSON.stringify(body):undefined});
@@ -20,6 +20,33 @@ async function login(){
  }catch{lock('ログインを開始できませんでした。ブラウザの設定を確認してください。');}
 }
 function describePasskeys(){el('account-name').textContent=profile?.name||'';el('passkey-state').textContent=passkeys?'登録済み（発行時に本人確認します）':'発行前にパスキーを登録してください。';el('register-passkey').textContent=passkeys?'パスキーを追加':'パスキーを登録';}
+function applyIssuer(){
+ if(!issuer)return;
+ el('issuer').value=issuer.name;el('address').value=issuer.address;el('phone').value=issuer.phone;
+ el('issuer-summary').textContent='登録済みの発行者情報を自動入力しています。';
+ window.render();
+}
+function editIssuer(){
+ el('profileIssuerName').value=issuer?.name||profile?.name||'';
+ el('profileIssuerAddress').value=issuer?.address||'';el('profileIssuerPhone').value=issuer?.phone||'';
+ el('issuer-dialog-status').textContent='';el('issuer-dialog-close').hidden=!issuer;el('issuer-dialog-logout').hidden=Boolean(issuer);
+ if(!el('issuer-dialog').open)el('issuer-dialog').showModal();
+}
+async function refreshHistory(){
+ const result=await api('/history');window.dispatchEvent(new CustomEvent('receipt-cloud-history',{detail:result.records}));return result.records;
+}
+async function saveDraft(receipt){
+ if(!issuer){editIssuer();throw new Error('先に発行者情報を登録してください。');}
+ return api('/drafts',{receipt,issuerVersion:issuer.version});
+}
+el('issuer-profile-form').onsubmit=async event=>{
+ event.preventDefault();const button=el('issuer-dialog-save');button.disabled=true;el('issuer-dialog-status').textContent='保存中…';
+ try{const result=await api('/issuer',{issuer:{name:el('profileIssuerName').value,address:el('profileIssuerAddress').value,phone:el('profileIssuerPhone').value},version:issuer?.version??null});issuer=result.issuer;applyIssuer();el('issuer-dialog').close();}
+ catch(error){el('issuer-dialog-status').textContent=error.message;}finally{button.disabled=false;}
+};
+el('issuer-dialog').addEventListener('cancel',event=>{if(!issuer)event.preventDefault()});
+el('edit-issuer').onclick=editIssuer;el('issuer-dialog-close').onclick=()=>el('issuer-dialog').close();
+el('issuer-dialog-logout').onclick=async()=>{await fb.signOut(auth);location.reload()};
 async function registerPasskey(){
  if(!window.PublicKeyCredential){el('passkey-state').textContent='このブラウザはパスキーに対応していません。SafariまたはChromeで開いてください。';return;}
  const button=el('register-passkey');button.disabled=true;
@@ -31,20 +58,22 @@ async function registerPasskey(){
   await api('/passkeys/register/verify',{challengeId,response});passkeys++;describePasskeys();
  }catch(error){el('passkey-state').textContent=error.name==='NotAllowedError'?'パスキーの登録を中止しました。':error.message;}finally{button.disabled=false;}
 }
-async function authorizeIssue(blob){
+async function authorizeIssue(blob,receipt){
  if(!profile)throw new Error('LMCアカウントでログインしてください。');
+ if(!issuer){editIssuer();throw new Error('先に発行者情報を登録してください。');}
  if(!passkeys){document.getElementById('tab-input').click();el('account-settings').open=true;el('account-settings').scrollIntoView({block:'start',behavior:'smooth'});throw new Error('発行前にパスキーを登録してください。');}
  if(!window.PublicKeyCredential)throw new Error('パスキー対応のSafariまたはChromeで開いてください。');
  const pdfHash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',await blob.arrayBuffer()))].map(b=>b.toString(16).padStart(2,'0')).join('');
- const {challengeId,options}=await api('/issue/options',{pdfHash});
+ const {challengeId,options}=await api('/issue/options',{pdfHash,receipt,issuerVersion:issuer.version});
  const publicKey={...options,challenge:decode(options.challenge),allowCredentials:(options.allowCredentials||[]).map(c=>({...c,id:decode(c.id)}))};
  let credential;try{credential=await navigator.credentials.get({publicKey});}catch(error){throw new Error(error.name==='NotAllowedError'?'本人確認を中止しました。PDFは発行していません。':error.message);}
  if(!credential)throw new Error('本人確認を中止しました。');
  const response={id:credential.id,rawId:encode(credential.rawId),type:credential.type,authenticatorAttachment:credential.authenticatorAttachment,clientExtensionResults:credential.getClientExtensionResults(),response:{authenticatorData:encode(credential.response.authenticatorData),clientDataJSON:encode(credential.response.clientDataJSON),signature:encode(credential.response.signature),userHandle:credential.response.userHandle?encode(credential.response.userHandle):null}};
  const result=await api('/issue/verify',{challengeId,pdfHash,response});
- if(!result.ok||result.pdfHash!==pdfHash)throw new Error('発行確認に失敗しました。');return result;
+ if(!result.ok||result.pdfHash!==pdfHash)throw new Error('発行確認に失敗しました。');
+ refreshHistory().catch(()=>{});return result;
 }
-window.receiptSession={get profile(){return profile},authorizeIssue,login};
+window.receiptSession={get profile(){return profile},get issuer(){return issuer},authorizeIssue,login,saveDraft,refreshHistory,editIssuer,applyIssuer};
 el('login-receipt').onclick=login;el('register-passkey').onclick=registerPasskey;
 el('logout-receipt').onclick=async()=>{await fb.signOut(auth);location.reload()};
 async function start(){
@@ -58,10 +87,12 @@ async function start(){
   const result=await api('/auth/exchange',{code,codeVerifier:saved.verifier,redirectUri:REDIRECT});await fb.signInWithCustomToken(auth,result.customToken);
  }
  if(!auth.currentUser){lock('LMCの登録済みアカウントでログインしてください。');return;}
- const result=await api('/me');profile=result.profile;passkeys=result.passkeys;describePasskeys();document.body.classList.add('authenticated');
+ const result=await api('/me');profile=result.profile;passkeys=result.passkeys;issuer=result.issuer;describePasskeys();document.body.classList.add('authenticated');
+ if(issuer)applyIssuer();else editIssuer();
  window.dispatchEvent(new Event('receipt-auth-ready'));
+ refreshHistory().catch(()=>{el('cloud-history-status').textContent='履歴を読み込めませんでした。「再読み込み」を押してください。'});
  fb.onAuthStateChanged(auth,user=>{if(!user)lock('ログインしてください。')});
- document.addEventListener('visibilitychange',async()=>{if(document.visibilityState==='visible'&&profile){try{const current=await api('/me');passkeys=current.passkeys;describePasskeys();}catch{lock('ログインを確認できません。再度ログインしてください。');}}});
+ document.addEventListener('visibilitychange',async()=>{if(document.visibilityState==='visible'&&profile){try{const current=await api('/me');passkeys=current.passkeys;describePasskeys();if(current.issuer?.version!==issuer?.version){issuer=current.issuer;if(issuer)applyIssuer();else editIssuer();}}catch{lock('ログインを確認できません。再度ログインしてください。');}}});
 }
 start().catch(error=>lock(error.message||'ログインを確認できませんでした。'));
 

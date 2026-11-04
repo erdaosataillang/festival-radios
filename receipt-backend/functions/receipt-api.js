@@ -1,5 +1,6 @@
 'use strict';
 const {randomBytes,createHash,timingSafeEqual}=require('node:crypto');
+const receiptData=require('./receipt-data');
 const APP='https://app.urakatabu.com',ACCOUNT='https://lmc-mobile.sorairosystem.com',REDIRECT=APP+'/recipt/',RP='app.urakatabu.com';
 const hash=value=>createHash('sha256').update(value).digest('base64url');
 const equal=(a,b)=>typeof a==='string'&&typeof b==='string'&&a.length===b.length&&timingSafeEqual(Buffer.from(a),Buffer.from(b));
@@ -15,9 +16,12 @@ function createHandler({auth,db,Timestamp,webauthn,now=()=>Date.now()}){
   return {uid:claims.uid,name:data.name.trim().slice(0,80),authTime:claims.auth_time};
  }
  const credentials=uid=>db.collection('receiptUsers').doc(uid).collection('credentials');
- async function challenge(user,kind,options,pdfHash){
+ const issuerRef=uid=>db.doc('receiptUsers/'+uid+'/settings/issuer');
+ const records=(uid,type)=>db.collection('receiptUsers').doc(uid).collection(type);
+ async function registeredIssuer(uid){const s=await issuerRef(uid).get();return s.exists?{...s.data(),updatedAt:s.get('updatedAt')?.toMillis()||0}:null;}
+ async function challenge(user,kind,options,pdfHash,receipt){
   const challengeId=randomBytes(24).toString('base64url');
-  await db.doc('receiptChallenges/'+challengeId).create({uid:user.uid,kind,challenge:options.challenge,expiresAt:Timestamp.fromMillis(now()+120000),...(pdfHash?{pdfHash}:{})});
+  await db.doc('receiptChallenges/'+challengeId).create({uid:user.uid,kind,challenge:options.challenge,expiresAt:Timestamp.fromMillis(now()+120000),...(pdfHash?{pdfHash}:{}),...(receipt?{receipt}:{})});
   return {challengeId,options};
  }
  function checkChallenge(s,user,kind){if(!s.exists||s.get('uid')!==user.uid||s.get('kind')!==kind||!s.get('expiresAt')||s.get('expiresAt').toMillis()<=now())fail(401,'認証の有効期限が切れました。もう一度お試しください。');}
@@ -44,8 +48,23 @@ function createHandler({auth,db,Timestamp,webauthn,now=()=>Date.now()}){
    }
    const user=await identity(req);
    const refs=credentials(user.uid);
-   if(req.method==='GET'&&req.path==='/me'){const keys=await refs.limit(10).get();res.json({profile:{id:user.uid,name:user.name},passkeys:keys.size});return;}
+   if(req.method==='GET'&&req.path==='/me'){const [keys,issuer]=await Promise.all([refs.limit(10).get(),registeredIssuer(user.uid)]);res.json({profile:{id:user.uid,name:user.name},passkeys:keys.size,issuer});return;}
    if(origin!==APP)fail(403,'領収書アプリから操作してください。');
+   if(req.path==='/issuer'&&req.method==='POST'){
+    const data=receiptData.issuer(body.issuer),ref=issuerRef(user.uid);let saved;
+    await db.runTransaction(async t=>{const s=await t.get(ref),version=s.exists?s.get('version'):null;if(body.version!==version)fail(409,'別の画面で発行者情報が更新されています。再読み込みしてください。');saved={...data,version:(version||0)+1,updatedAt:Timestamp.fromMillis(now())};if(s.exists)t.update(ref,saved);else t.create(ref,saved);});
+    res.json({issuer:{...saved,updatedAt:saved.updatedAt.toMillis()}});return;
+   }
+   if(req.path==='/drafts'&&req.method==='POST'){
+    const registered=await registeredIssuer(user.uid),receipt=receiptData.receipt(body.receipt,registered,body.issuerVersion),ref=records(user.uid,'drafts').doc(hash(receipt.number+'\0'+receipt.permanent)),updatedAt=Timestamp.fromMillis(now());
+    await db.runTransaction(async t=>{const issuer=await t.get(issuerRef(user.uid)),draft=await t.get(ref);if(!issuer.exists||issuer.get('version')!==registered.version)fail(409,'発行者情報が更新されました。再読み込みしてください。');const data={uid:user.uid,receipt,updatedAt};if(draft.exists)t.update(ref,data);else t.create(ref,data);});
+    res.json({ok:true,id:ref.id});return;
+   }
+   if(req.path==='/history'&&req.method==='GET'){
+    const [issued,drafts]=await Promise.all([records(user.uid,'receipts').orderBy('issuedAt','desc').limit(100).get(),records(user.uid,'drafts').orderBy('updatedAt','desc').limit(100).get()]);
+    const rows=[...issued.docs.map(s=>({id:s.id,kind:'issued',data:s.get('receipt'),pdfHash:s.get('pdfHash'),at:s.get('issuedAt').toMillis()})),...drafts.docs.map(s=>({id:s.id,kind:'draft',data:s.get('receipt'),at:s.get('updatedAt').toMillis()}))].sort((a,b)=>b.at-a.at);
+    res.json({records:rows});return;
+   }
    if(req.method==='POST'&&req.path==='/passkeys/register/options'){
     if(!Number.isFinite(user.authTime)||now()/1000-user.authTime>300)fail(401,'パスキー登録の前にLMCへ再ログインしてください。');
     const keys=await refs.limit(10).get();if(keys.size>=8)fail(400,'登録できるパスキーは8件までです。');
@@ -63,8 +82,10 @@ function createHandler({auth,db,Timestamp,webauthn,now=()=>Date.now()}){
    }
    if(req.method==='POST'&&req.path==='/issue/options'){
     if(!digest(body.pdfHash))fail(400,'PDFを確認してください。');const keys=await refs.limit(10).get();if(!keys.size)fail(409,'発行前にパスキーを登録してください。');
+    const registered=await registeredIssuer(user.uid),receipt=receiptData.receipt(body.receipt,registered,body.issuerVersion);
+    if(body.receipt.issuer!==receipt.issuer||body.receipt.address!==receipt.address||body.receipt.phone!==receipt.phone)fail(409,'登録済みの発行者情報を反映してから発行してください。');
     const options=await webauthn.generateAuthenticationOptions({rpID:RP,userVerification:'required',allowCredentials:keys.docs.map(d=>({id:d.get('credentialId'),transports:d.get('transports')}))});
-    res.json(await challenge(user,'issuance',options,body.pdfHash));return;
+    res.json(await challenge(user,'issuance',options,body.pdfHash,receipt));return;
    }
    if(req.method==='POST'&&req.path==='/issue/verify'){
     if(!id(body.challengeId)||!digest(body.pdfHash)||typeof body.response?.id!=='string'||body.response.id.length>2048)fail(400,'認証応答が正しくありません。');
@@ -73,8 +94,8 @@ function createHandler({auth,db,Timestamp,webauthn,now=()=>Date.now()}){
     if(body.response.response?.userHandle&&!equal(body.response.response.userHandle,Buffer.from(user.uid).toString('base64url')))fail(403,'アカウントが一致しません。');
     let verification;try{verification=await webauthn.verifyAuthenticationResponse({response:body.response,expectedChallenge:s.get('challenge'),expectedOrigin:APP,expectedRPID:RP,requireUserVerification:true,credential:{id:key.get('credentialId'),publicKey:new Uint8Array(Buffer.from(key.get('publicKey'),'base64')),counter:key.get('counter'),transports:key.get('transports')}});}catch{fail(401,'パスキーの本人確認に失敗しました。');}
     if(!verification.verified||!verification.authenticationInfo?.userVerified)fail(401,'本人確認が必要です。');
-    const issuance=db.collection('receiptIssuances').doc();
-    await db.runTransaction(async t=>{const fresh=await t.get(ref),freshKey=await t.get(keyRef);checkChallenge(fresh,user,'issuance');if(!equal(fresh.get('pdfHash'),body.pdfHash)||!freshKey.exists||freshKey.get('counter')!==key.get('counter'))fail(409,'認証をやり直してください。');t.update(keyRef,{counter:verification.authenticationInfo.newCounter,lastUsedAt:Timestamp.fromMillis(now())});t.create(issuance,{uid:user.uid,pdfHash:body.pdfHash,credential:hash(body.response.id),issuedAt:Timestamp.fromMillis(now())});t.delete(ref);});
+    const issuance=db.collection('receiptIssuances').doc(),record=records(user.uid,'receipts').doc(issuance.id);
+    await db.runTransaction(async t=>{const fresh=await t.get(ref),freshKey=await t.get(keyRef),registered=await t.get(issuerRef(user.uid));checkChallenge(fresh,user,'issuance');if(!equal(fresh.get('pdfHash'),body.pdfHash)||!freshKey.exists||freshKey.get('counter')!==key.get('counter'))fail(409,'認証をやり直してください。');if(!fresh.get('receipt')||!registered.exists||registered.get('version')!==fresh.get('receipt').issuerVersion)fail(409,'発行者情報が更新されました。発行をやり直してください。');const issuedAt=Timestamp.fromMillis(now());t.update(keyRef,{counter:verification.authenticationInfo.newCounter,lastUsedAt:issuedAt});t.create(issuance,{uid:user.uid,pdfHash:body.pdfHash,credential:hash(body.response.id),issuedAt});t.create(record,{uid:user.uid,actorName:user.name,receipt:fresh.get('receipt'),pdfHash:body.pdfHash,issuedAt});t.delete(ref);});
     res.json({ok:true,issuanceId:issuance.id,pdfHash:body.pdfHash});return;
    }
    fail(404,'操作が見つかりません。');
