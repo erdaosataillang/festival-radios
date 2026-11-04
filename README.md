@@ -69,3 +69,23 @@ GitHub Pagesのカスタムドメインは `app.urakatabu.com` です。アプ�
 電子署名は「印鑑 → PDFの電子署名」で秘密鍵付きRSA証明書（.p12／.pfx）を読み込むと利用できます。証明書とパスワードはサーバーに送信・保存せず、ブラウザのメモリー内でのみ使用します。署名はPKCS#7 detached形式でPDFに埋め込みます。信頼性の確認は対応するPDF閲覧ソフトで行ってください。認証局のタイムスタンプ・長期署名は未対応です。
 
 暗号処理: node-forge 1.4.3（同梱ライセンス: `recipt/vendor/forge-LICENSE.txt`）。
+
+## 領収書のログインと発行認証
+
+領収書の操作画面は、LMCの登録済みLINEアカウントでログインすると表示されます。GitHub Pagesの静的ファイル自体は公開配信です。発行APIはFirebase IDトークン、現時点の登録ユーザーと利用停止状態を毎回検証します。`users/{uid}.receiptAccess=false` のユーザーは利用できません。既存の無線APIは変更していません。
+
+LMC側の `receipt-authorize.html` と、専用API `receiptApi` をPKCE S256の一度限りの短期認証コードで連携します。パスキー登録には5分以内のLMCログインが必要です。発行には、PDFのSHA-256に紐付いた2分有効の一度限りのWebAuthn認証が必要です。RP IDは `app.urakatabu.com`、OriginはHTTPSの同ホストに固定し、User Verificationを必須にしています。顔・指紋または端末のPINなど、実際の方法は端末に依存します。生体情報は取得しません。
+
+保存先は専用の `receiptUsers`（公開鍵）、`receiptChallenges`（短期チャレンジ）、`receiptAuthorizationCodes`（ログインコード）、`receiptIssuances`（UID・PDFハッシュ・発行日時）です。PDF本文はサーバーに保存しません。ブラウザ内履歴はアカウントごとに分離しています。パスキーは発行時の本人確認であり、証明書を埋め込むPDF電子署名とは別です。
+
+専用APIのデプロイ:
+
+    cd receipt-backend
+    npm --prefix functions ci
+    firebase deploy --only functions:receipt --project urakata-app --non-interactive
+
+認証テスト:
+
+    npm --prefix receipt-backend/functions test
+
+スマホ画面は320px以上を対象に、入力欄、数字キーボード、Safe Area、操作ボタンと下部ナビ、プレビュー拡大を調整しています。
