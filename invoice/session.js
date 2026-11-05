@@ -1,11 +1,11 @@
 const API='https://asia-northeast1-urakata-app.cloudfunctions.net/receiptApi';
 const REDIRECT='https://app.urakatabu.com/invoice/';
 const AUTHORIZE='https://lmc-mobile.sorairosystem.com/invoice-authorize.html';
-let auth,fb,profile=null,passkeys=0,issuer=null;
+let auth,fb,profile=null,passkeys=0,issuer=null,savedSeal=null;
 const el=id=>document.getElementById(id);
 const encode=bytes=>btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 const decode=value=>Uint8Array.from(atob(value.replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(value.length/4)*4,'=')),c=>c.charCodeAt(0));
-function lock(message){profile=null;issuer=null;if(el('issuer-dialog')?.open)el('issuer-dialog').close();document.body.classList.remove('authenticated');el('auth-status').textContent=message;el('login-receipt').disabled=false;}
+function lock(message){profile=null;issuer=null;savedSeal=null;if(el('issuer-dialog')?.open)el('issuer-dialog').close();document.body.classList.remove('authenticated');el('auth-status').textContent=message;el('login-receipt').disabled=false;}
 async function api(path,body){
  const headers={'Content-Type':'application/json'};if(auth?.currentUser)headers.Authorization='Bearer '+await auth.currentUser.getIdToken();
  const response=await fetch(API+path,{method:body?'POST':'GET',headers,cache:'no-store',body:body?JSON.stringify(body):undefined});
@@ -26,6 +26,22 @@ function applyIssuer(){
  el('issuer-summary').textContent='登録済みの発行者・振込先を自動入力しています。';
  window.render();
 }
+function applySavedSeal(){
+ if(!savedSeal)return;
+ for(const key of ['sealName','sealShape','sealFont'])el(key).value=savedSeal[key];
+ el('seal').value='generated';window.render();
+}
+async function saveAccountSeal(){
+ const button=el('save-account-seal');button.disabled=true;el('seal-status').textContent='サーバーに保存中…';
+ try{const seal=Object.fromEntries(['sealName','sealShape','sealFont'].map(key=>[key,el(key).value]));const result=await api('/seal',{seal,version:savedSeal?.version??null});savedSeal=result.seal;el('seal-status').textContent='印鑑をアカウントに保存しました。';}
+ catch(error){el('seal-status').textContent=error.message;}finally{button.disabled=false;}
+}
+async function loadAccountSeal(){
+ const button=el('load-account-seal');button.disabled=true;
+ try{const result=await api('/seal');savedSeal=result.seal;if(savedSeal){applySavedSeal();el('seal-status').textContent='保存した印鑑を読み込みました。';}else el('seal-status').textContent='保存した印鑑はありません。';}
+ catch(error){el('seal-status').textContent=error.message;}finally{button.disabled=false;}
+}
+el('save-account-seal').onclick=saveAccountSeal;el('load-account-seal').onclick=loadAccountSeal;
 function editIssuer(){
  el('profileIssuerName').value=issuer?.name||profile?.name||'';
  el('profileIssuerAddress').value=issuer?.address||'';el('profileIssuerPhone').value=issuer?.phone||'';for(const key of ['name','branch','type','number','holder'])el('bank-'+key).value=issuer?.bank?.[key]||(key==='type'?'普通':'');
@@ -87,7 +103,7 @@ async function start(){
   const result=await api('/auth/exchange',{code,codeVerifier:saved.verifier,redirectUri:REDIRECT});await fb.signInWithCustomToken(auth,result.customToken);
  }
  if(!auth.currentUser){lock('登録済みの裏方アカウントでログインしてください。');return;}
- const result=await api('/me');profile=result.profile;passkeys=result.passkeys;issuer=result.issuer;describePasskeys();document.body.classList.add('authenticated');
+ const result=await api('/me');profile=result.profile;passkeys=result.passkeys;issuer=result.issuer;savedSeal=result.seal;applySavedSeal();describePasskeys();document.body.classList.add('authenticated');
  if(issuer)applyIssuer();if(!issuer?.bank?.number)editIssuer();
  window.dispatchEvent(new Event('receipt-auth-ready'));
  refreshHistory().catch(()=>{el('cloud-history-status').textContent='履歴を読み込めませんでした。「再読み込み」を押してください。'});

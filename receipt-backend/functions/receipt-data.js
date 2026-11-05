@@ -13,4 +13,10 @@ function receipt(value,registered,version){
  // The issuer is always taken from the account's registered profile, never from client input.
  return {recipient:text(value.recipient,100,true),honorific:value.honorific,date,amount,purpose:text(value.purpose,250,true),detail:text(value.detail??'',150),number:text(value.number,40,true),permanent:text(value.permanent??'',40),note:text(value.note??'',400),issuer:registered.name,address:registered.address,phone:registered.phone,issuerVersion:registered.version,seal:value.seal,sealName,sealShape:value.sealShape,sealFont:value.sealFont,signatureMode:value.signatureMode};
 }
-module.exports={issuer,receipt};
+function seal(value){
+ if(!value||typeof value!=='object')fail(400,'印鑑の設定を確認してください。');
+ const sealName=text(value.sealName,8,true);
+ if(!['round','square'].includes(value.sealShape)||!['mincho','gothic'].includes(value.sealFont))fail(400,'印鑑の設定を確認してください。');
+ return {sealName,sealShape:value.sealShape,sealFont:value.sealFont};
+}
+module.exports={issuer,receipt,seal};

@@ -18,6 +18,7 @@ function createHandler({auth,db,Timestamp,webauthn,now=()=>Date.now()}){
   return {uid:claims.uid,name:data.name.trim().slice(0,80),authTime:claims.auth_time};
  }
  const credentials=uid=>db.collection('receiptUsers').doc(uid).collection('credentials');
+ const sealRef=uid=>db.doc('receiptUsers/'+uid+'/settings/seal');
  const issuerRef=uid=>db.doc('receiptUsers/'+uid+'/settings/issuer');
  const records=(uid,type)=>db.collection('receiptUsers').doc(uid).collection(type);
  async function registeredIssuer(uid){const s=await issuerRef(uid).get();return s.exists?{...s.data(),updatedAt:s.get('updatedAt')?.toMillis()||0}:null;}
@@ -50,8 +51,16 @@ function createHandler({auth,db,Timestamp,webauthn,now=()=>Date.now()}){
    }
    const user=await identity(req);
    const refs=credentials(user.uid);
-   if(req.method==='GET'&&req.path==='/me'){const [keys,issuer]=await Promise.all([refs.limit(10).get(),registeredIssuer(user.uid)]);res.json({profile:{id:user.uid,name:user.name},passkeys:keys.size,issuer});return;}
+   if(req.method==='GET'&&req.path==='/me'){const [keys,issuer,seal]=await Promise.all([refs.limit(10).get(),registeredIssuer(user.uid),sealRef(user.uid).get()]);res.json({profile:{id:user.uid,name:user.name},passkeys:keys.size,issuer,seal:seal.exists?{...seal.data(),updatedAt:seal.get('updatedAt').toMillis()}:null});return;}
    if(origin!==APP)fail(403,'裏方部アプリから操作してください。');
+   if(req.path==='/seal'&&req.method==='GET'){
+    const seal=await sealRef(user.uid).get();res.json({seal:seal.exists?{...seal.data(),updatedAt:seal.get('updatedAt').toMillis()}:null});return;
+   }
+   if(req.path==='/seal'&&req.method==='POST'){
+    const data=receiptData.seal(body.seal),ref=sealRef(user.uid);let saved;
+    await db.runTransaction(async t=>{const s=await t.get(ref),version=s.exists?s.get('version'):null;if(body.version!==version)fail(409,'別の画面で印鑑が更新されています。「保存した印鑑を読み込む」を押してください。');saved={...data,version:(version||0)+1,updatedAt:Timestamp.fromMillis(now())};if(s.exists)t.update(ref,saved);else t.create(ref,saved);});
+    res.json({seal:{...saved,updatedAt:saved.updatedAt.toMillis()}});return;
+   }
    if(req.path==='/issuer'&&req.method==='POST'){
     const data=receiptData.issuer(body.issuer),ref=issuerRef(user.uid);let saved;
     const bank=body.issuer.bank===undefined?undefined:invoiceData.bank(body.issuer.bank);
