@@ -5,3 +5,10 @@
 @media(max-width:350px){.recipient-row{grid-template-columns:minmax(0,1fr) 78px}.mobile-actions{padding-left:12px;padding-right:12px;gap:8px}.mobile-actions button{font-size:13px}.history-head{display:grid;grid-template-columns:1fr}.history-head button{justify-self:start}.seal-preview-wrap svg{width:128px;height:128px}}
 #issuer-dialog{width:calc(100% - 24px);max-width:440px;max-height:calc(100dvh - 32px);padding:24px;border:0;border-radius:18px;color:#1f1f1f;font-family:inherit;overflow-y:auto;overscroll-behavior:contain}#issuer-dialog::backdrop{background:#17203388}#issuer-dialog h2{font-size:18px;margin-bottom:14px}#issuer-dialog .actions{position:sticky;bottom:-24px;background:white;padding:16px 0 4px;margin-top:18px}#issuer-dialog .actions button{min-height:48px}#issuer-dialog button[hidden]{display:none}input[readonly],textarea[readonly]{background:#f1f3f4;color:#444746}.issuer-edit{font-size:12px;min-height:44px;color:#0b57d0;background:#e8f0fe}.record-kind{display:inline-block;margin:0 0 8px;padding:3px 8px;border-radius:6px;font-size:11px;background:#f1f3f4;color:#5f6368}.record-kind.issued{background:#e8f0fe;color:#0b57d0}.entry strong{display:block;font-size:14px;font-weight:600}#history-refresh{margin-top:4px;min-height:44px;font-size:12px}.entry .record-kind{line-height:1.6}
 @media print{.auth-gate,#account-settings,.preview-tools,#issuer-dialog{display:none!important}.paper-wrap.zoomed .receipt{min-width:0!important}.mobile-actions{display:none!important}header{position:static}}
+
+.auth-spinner{display:none;width:24px;height:24px;border:2px solid #dbe7fa;border-top-color:#0b57d0;border-radius:50%;margin:0 auto}
+.auth-pending .auth-spinner{display:block;animation:auth-spin .75s linear infinite}
+.authenticated>main{animation:auth-enter .22s ease-out}
+@keyframes auth-spin{to{transform:rotate(360deg)}}
+@keyframes auth-enter{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.auth-pending .auth-spinner,.authenticated>main{animation:none}}

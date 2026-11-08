@@ -1,18 +1,42 @@
 const API='https://asia-northeast1-urakata-app.cloudfunctions.net/receiptApi';
 const REDIRECT='https://app.urakatabu.com/recipt/';
 const AUTHORIZE='https://lmc-mobile.sorairosystem.com/receipt-authorize.html';
+let pendingLoginToken;
 let auth,fb,profile=null,passkeys=0,issuer=null,savedSeal=null;
 const el=id=>document.getElementById(id);
 const encode=bytes=>btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 const decode=value=>Uint8Array.from(atob(value.replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(value.length/4)*4,'=')),c=>c.charCodeAt(0));
-function lock(message){profile=null;issuer=null;savedSeal=null;if(el('issuer-dialog')?.open)el('issuer-dialog').close();document.body.classList.remove('authenticated');el('auth-status').textContent=message;el('login-receipt').disabled=false;}
+function showAuthStatus(message, pending = false, retry = false) {
+ document.documentElement.classList.toggle('auth-pending', pending);
+ el('auth-status').textContent = message;
+ el('login-receipt').disabled = pending;
+ el('retry-session').hidden = !retry;
+}
+function lock(message){profile=null;issuer=null;savedSeal=null;if(el('issuer-dialog')?.open)el('issuer-dialog').close();document.body.classList.remove('authenticated');showAuthStatus(message);}
 async function api(path,body){
- const headers={'Content-Type':'application/json'};if(auth?.currentUser)headers.Authorization='Bearer '+await auth.currentUser.getIdToken();
- const response=await fetch(API+path,{method:body?'POST':'GET',headers,cache:'no-store',body:body?JSON.stringify(body):undefined});
- const result=await response.json();if(!response.ok){if(response.status===401||response.status===403)lock(result.error);throw Object.assign(new Error(result.error||'処理できませんでした。'),{status:response.status});}return result;
+ const headers={'Content-Type':'application/json'};if(path!=='/auth/exchange'&&auth?.currentUser)headers.Authorization='Bearer '+await auth.currentUser.getIdToken();
+ const controller = new AbortController();
+ const timeout = setTimeout(() => controller.abort(), 12000);
+ try {
+  const response = await fetch(API + path, {
+   method: body ? 'POST' : 'GET', headers, cache: 'no-store',
+   body: body ? JSON.stringify(body) : undefined, signal: controller.signal,
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+   throw Object.assign(new Error(result.error || 'サーバーへの接続に失敗しました。'), {status: response.status});
+  }
+  return result;
+ } catch (error) {
+  if (error.status) throw error;
+  throw new Error('サーバーに接続できません。通信状況を確認して再試行してください。');
+ } finally {
+  clearTimeout(timeout);
+ }
 }
 async function login(){
- el('login-receipt').disabled=true;el('auth-status').textContent='ログイン画面へ移動します。';
+ pendingLoginToken = undefined;
+ showAuthStatus('ログイン画面へ移動しています。', true);
  try{const state=encode(crypto.getRandomValues(new Uint8Array(32))),verifier=encode(crypto.getRandomValues(new Uint8Array(48)));
  const challenge=encode(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier)));
  sessionStorage.setItem('receipt-login',JSON.stringify({state,verifier,at:Date.now()}));
@@ -33,7 +57,7 @@ function applySavedSeal(){
 }
 async function saveAccountSeal(){
  const button=el('save-account-seal');button.disabled=true;el('seal-status').textContent='サーバーに保存中…';
- try{const seal=Object.fromEntries(['sealName','sealShape','sealFont'].map(key=>[key,el(key).value]));const result=await api('/seal',{seal,version:savedSeal?.version??null});savedSeal=result.seal;el('seal-status').textContent='印鑑をアカウントに保存しました。';}
+ try{const seal=Object.fromEntries(['sealName','sealShape','sealFont'].map(key=>[key,el(key).value]));const result=await api('/seal',{seal,version:savedSeal?.version??null});savedSeal=result.seal;applySavedSeal();el('seal-status').textContent='印鑑をアカウントに保存しました。';}
  catch(error){el('seal-status').textContent=error.message;}finally{button.disabled=false;}
 }
 async function loadAccountSeal(){
@@ -93,23 +117,88 @@ window.receiptSession={get profile(){return profile},get issuer(){return issuer}
 el('login-receipt').onclick=login;el('register-passkey').onclick=registerPasskey;
 el('logout-receipt').onclick=async()=>{await fb.signOut(auth);location.reload()};
 async function start(){
+ showAuthStatus('ログインを確認しています。', true);
+ if (!auth) {
  const {initializeApp}=await import('https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js');fb=await import('https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js');
  auth=fb.getAuth(initializeApp({apiKey:'AIzaSyAWtITnn5uMOPBgOY0Bd7Rt5IN1ry8XoJI',authDomain:'urakata-app.firebaseapp.com',projectId:'urakata-app',appId:'1:407777765696:web:045c2d94729022b4eab2a5'}));
+ }
  await auth.authStateReady();const params=new URLSearchParams(location.search);
  if(params.has('auth_code')){
   let saved;try{saved=JSON.parse(sessionStorage.getItem('receipt-login')||'null')}catch{}
   const code=params.get('auth_code'),state=params.get('state');window.history.replaceState(null,'',location.pathname);sessionStorage.removeItem('receipt-login');
-  if(!saved||saved.state!==state||Date.now()-saved.at>600000)throw new Error('ログインの確認に失敗しました。もう一度ログインしてください。');
-  const result=await api('/auth/exchange',{code,codeVerifier:saved.verifier,redirectUri:REDIRECT});await fb.signInWithCustomToken(auth,result.customToken);
+  if(!saved||saved.state!==state||Date.now()-saved.at>600000)throw Object.assign(new Error('ログインの有効期限が切れました。もう一度ログインしてください。'),{status:400});
+  const result=await api('/auth/exchange',{code,codeVerifier:saved.verifier,redirectUri:REDIRECT});pendingLoginToken=result.customToken;
+ }
+ if (pendingLoginToken) {
+  try {
+   await fb.signInWithCustomToken(auth, pendingLoginToken);
+  } catch (error) {
+   if (error.code === 'auth/network-request-failed') throw error;
+   pendingLoginToken = undefined;
+   throw Object.assign(new Error('ログインをやり直してください。'), {status:401});
+  }
+  pendingLoginToken = undefined;
  }
  if(!auth.currentUser){lock('登録済みの裏方アカウントでログインしてください。');return;}
- const result=await api('/me');profile=result.profile;passkeys=result.passkeys;issuer=result.issuer;savedSeal=result.seal;applySavedSeal();describePasskeys();document.body.classList.add('authenticated');
+ const result=await api('/me');profile=result.profile;passkeys=result.passkeys;issuer=result.issuer;savedSeal=result.seal;applySavedSeal();describePasskeys();showAuthStatus('ログインしました。');document.body.classList.add('authenticated');
  if(issuer)applyIssuer();else editIssuer();
  window.dispatchEvent(new Event('receipt-auth-ready'));
  refreshHistory().catch(()=>{el('cloud-history-status').textContent='履歴を読み込めませんでした。「再読み込み」を押してください。'});
- fb.onAuthStateChanged(auth,user=>{if(!user)lock('ログインしてください。')});
- document.addEventListener('visibilitychange',async()=>{if(document.visibilityState==='visible'&&profile){try{const current=await api('/me');passkeys=current.passkeys;describePasskeys();if(current.issuer?.version!==issuer?.version){issuer=current.issuer;if(issuer)applyIssuer();else editIssuer();}}catch{lock('ログインを確認できません。再度ログインしてください。');}}});
+ observeSession();
 }
-start().catch(error=>lock(error.message||'ログインを確認できませんでした。'));
 
-window.addEventListener('pageshow',event=>{if(event.persisted)location.reload()});
+let observingSession = false;
+let checkingSession = false;
+function observeSession() {
+ if (observingSession) return;
+ observingSession = true;
+ fb.onAuthStateChanged(auth, user => {
+  if (!user) lock('裏方アカウントでログインしてください。');
+  else if (profile && user.uid !== profile.id) location.reload();
+ });
+ document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') refreshSession();
+ });
+}
+
+async function refreshSession() {
+ if (!profile || checkingSession) return;
+ checkingSession = true;
+ const accountId = profile.id;
+ try {
+  const current = await api('/me');
+  if (profile?.id !== accountId) return;
+  if (current.profile.id !== accountId) {
+   location.reload();
+   return;
+  }
+  passkeys = current.passkeys;
+  describePasskeys();
+  if (current.issuer?.version !== issuer?.version) {
+   issuer = current.issuer;
+   if (issuer) applyIssuer();
+  }
+ } catch (error) {
+  if (profile?.id === accountId && [401, 403].includes(error.status)) lock(error.message);
+ } finally {
+  checkingSession = false;
+ }
+}
+
+function checkLogin() {
+ start().catch(error => {
+  const message = [400, 401, 403].includes(error.status)
+   ? error.message : 'ログインを確認できませんでした。通信状況を確認して再試行してください。';
+  lock(message);
+  showAuthStatus(message, false, ![400, 401, 403].includes(error.status));
+ });
+}
+
+el('retry-session').onclick = checkLogin;
+window.addEventListener('pageshow', event => {
+ if (event.persisted) {
+  if (profile) refreshSession();
+  else if (!el('login-receipt').disabled) checkLogin();
+ }
+});
+checkLogin();
