@@ -154,7 +154,7 @@ function createHandler({auth,db,Timestamp,webauthn,now=()=>Date.now()}){
      if(sequence.exists)t.update(invoiceSequence,{next:next+1});
      else t.create(invoiceSequence,{next:next+1});
     }
-    const issuedAt=Timestamp.fromMillis(now());t.update(keyRef,{counter:verification.authenticationInfo.newCounter,lastUsedAt:issuedAt});t.create(issuance,{uid:user.uid,actorName:user.name,documentType,pdfHash:body.pdfHash,credential:hash(body.response.id),issuedAt});t.create(record,{uid:user.uid,documentType,actorName:user.name,receipt:fresh.get('receipt'),pdfHash:body.pdfHash,issuedAt});t.delete(ref);});
+    const issuedAt=Timestamp.fromMillis(now());t.update(keyRef,{counter:verification.authenticationInfo.newCounter,lastUsedAt:issuedAt});t.create(issuance,{uid:user.uid,actorName:user.name,documentType,...(invoiceMode?{documentVariant:snapshot.documentVariant??'invoice'}:{}),pdfHash:body.pdfHash,credential:hash(body.response.id),issuedAt});t.create(record,{uid:user.uid,documentType,actorName:user.name,receipt:fresh.get('receipt'),pdfHash:body.pdfHash,issuedAt});t.delete(ref);});
     res.json({ok:true,issuanceId:issuance.id,pdfHash:body.pdfHash});return;
    }
    fail(404,'操作が見つかりません。');

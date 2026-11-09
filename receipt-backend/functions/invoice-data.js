@@ -11,6 +11,8 @@ function invoice(value,registered,version,{draft=false}={}){
  if(totals.total<1)fail(400,'請求金額を入力してください。');
  if(!['御中','様'].includes(value.honorific)||!['hide','generated'].includes(value.seal)||!['round','square'].includes(value.sealShape)||!['mincho','gothic'].includes(value.sealFont)||!['unsigned','signed'].includes(value.signatureMode))fail(400,'設定を確認してください。');
  const sealName=text(value.sealName??'',8);if(value.seal==='generated'&&!sealName)fail(400,'印鑑の文字を入力してください。');
- return {documentType:'invoice',recipient:text(value.recipient,100,true),honorific:value.honorific,number:draft?'':text(value.number,40,true),permanent:'',date:date(value.date),deliveryDate:date(value.deliveryDate,false),dueDate:date(value.dueDate),subject:text(value.subject,150,true),note:text(value.note??'',400),...totals,issuer:registered.name,address:registered.address,phone:registered.phone,bank:registered.bank,issuerVersion:registered.version,seal:value.seal,sealName,sealShape:value.sealShape,sealFont:value.sealFont,signatureMode:value.signatureMode};
+ const documentVariant=value.documentVariant??'invoice';
+ if(!['invoice','invoiceEstimate','estimate'].includes(documentVariant))fail(400,'帳票の種類を確認してください。');
+ return {documentType:'invoice',documentVariant,recipient:text(value.recipient,100,true),honorific:value.honorific,number:draft?'':text(value.number,40,true),permanent:'',date:date(value.date),deliveryDate:date(value.deliveryDate,false),dueDate:date(value.dueDate),subject:text(value.subject,150,true),note:text(value.note??'',400),...totals,issuer:registered.name,address:registered.address,phone:registered.phone,bank:registered.bank,issuerVersion:registered.version,seal:value.seal,sealName,sealShape:value.sealShape,sealFont:value.sealFont,signatureMode:value.signatureMode};
 }
 module.exports={bank,invoice};

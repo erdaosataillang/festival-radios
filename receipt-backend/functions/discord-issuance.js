@@ -7,7 +7,10 @@ async function notifyIssuance(webhook, issuance, issuanceId, fetchImpl = fetch) 
     throw new Error('Invalid Discord webhook configuration');
   }
 
-  const type = issuance.documentType === 'invoice' ? '請求書' : '領収書';
+  const invoiceTitles = {invoiceEstimate: '請求書兼見積書', estimate: '見積書'};
+  const type = issuance.documentType === 'invoice'
+    ? (Object.hasOwn(invoiceTitles, issuance.documentVariant) ? invoiceTitles[issuance.documentVariant] : '請求書')
+    : '領収書';
   const time = new Intl.DateTimeFormat('ja-JP', {
     timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
   }).format(issuance.issuedAt.toMillis());
