@@ -1,0 +1,157 @@
+@media screen {
+  .official-ui {
+    --official-ink: #192326;
+    --official-photo-dark: #170f0d;
+    --official-line: #dce2df;
+    --official-gold: #f6cd54;
+    --official-paper: #f7f8f8;
+    --official-photo: url('./official/urakatabu-console.webp');
+    color: var(--official-ink);
+    background: var(--official-paper);
+    scroll-behavior: smooth;
+  }
+  .official-ui body {
+    font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    color: var(--official-ink);
+    background: var(--official-paper);
+  }
+  .official-ui body > header {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: none;
+    min-height: 70px;
+    height: auto;
+    padding: 10px clamp(16px, 4vw, 64px);
+    gap: 12px;
+    color: #fff;
+    background: linear-gradient(#100c09e8, #170f0dd9), var(--official-photo) center 49% / cover;
+    border-bottom: 3px solid var(--official-gold);
+  }
+  .official-ui header .header-title,
+  .official-ui header .header-brand,
+  .official-ui header .portal-link { color:#fff; }
+  .official-ui header a:hover { text-decoration:underline; text-underline-offset:4px; }
+  .official-ui urakata-account .account-trigger {
+    border-color:#ffffff66; background:#ffffff24; color:white;
+  }
+  .official-ui .account-cover {
+    background: linear-gradient(#170f0d24,#170f0db8), var(--official-photo) center 51% / cover;
+    border-bottom:3px solid var(--official-gold);
+  }
+  .official-ui dialog.urakata-profile-dialog { border-radius:12px; }
+  .official-ui .urakata-profile-dialog .account-main-action,
+  .official-ui .urakata-profile-dialog:not(.signed-in) .account-session-action,
+  .official-ui button.primary {
+    background:var(--official-ink);
+    color:#fff;
+    border:1px solid var(--official-ink);
+    border-radius:6px;
+  }
+  .official-ui .urakata-profile-dialog .account-main-action:hover,
+  .official-ui button.primary:not(:disabled):hover { background:#354348; }
+  .official-ui :is(main,dialog) :is(input,textarea,select):not([type=checkbox]):not([type=radio]) {
+    border-radius:5px;
+    border-color:var(--official-line);
+    background-color:#fff;
+  }
+  .official-ui :is(main,dialog,.auth-gate) button:not(.account-close) { transition:background-color .2s, border-color .2s; }
+  .official-ui :is(.panel,.item-card,.radioitem,.paper-wrap) {
+    border:1px solid var(--official-line);
+    border-radius:7px;
+    box-shadow:none;
+  }
+  .official-ui .invoice-totals { background:#f5f3ec; }
+  .official-ui .radioitem.active { border-color:#b88b2c; background:#fffbf1; }
+  .official-ui :is(#edit,#add,#save,.auth-gate .primary) { background:var(--official-ink); color:#fff; }
+  .official-ui .panel h2, .official-ui .preview-head h2 {
+    letter-spacing:.035em;
+    color:var(--official-ink);
+  }
+  .official-ui .bottom-nav { border-top-color:var(--official-line); }
+  .official-ui .nav-item[aria-selected=true] { color:var(--official-ink); }
+  .official-ui .nav-item[aria-selected=true] .nav-icon { background:#f6cd5455; }
+  .official-ui :is(button,a,input,select,textarea,summary):focus-visible {
+    outline:2px solid #9e7418;
+    outline-offset:3px;
+  }
+  .official-ui body:has(.auth-gate):not(.authenticated) {
+    background:linear-gradient(#170f0d63,#170f0dd9), var(--official-photo) center / cover fixed;
+  }
+  .official-ui body:not(.authenticated) > .auth-gate {
+    border-radius:10px;
+    border-top:4px solid var(--official-gold);
+    box-shadow:0 16px 46px #0005;
+    animation:official-appear .36s ease-out;
+  }
+  .official-ui .auth-gate .auth-mark { background:var(--official-paper); border-radius:8px; }
+  .official-ui .auth-progress { background:#f4eddc; }
+  .official-ui .auth-progress::before { background:#c39226; }
+  .official-ui .auth-gate .auth-back { color:var(--official-ink); }
+  .official-ui body:has(.portal-hero) > header {
+    position:absolute;
+    inset:0 0 auto;
+    z-index:5;
+    margin:0;
+    background:linear-gradient(#0008,#0000);
+    border-bottom:1px solid #ffffff66;
+  }
+  .official-ui .portal-hero {
+    isolation:isolate;
+    position:relative;
+    display:grid;
+    place-items:center;
+    overflow:hidden;
+    min-height:clamp(270px, 48vh, 470px);
+    padding-top:64px;
+    background:var(--official-photo-dark);
+    border-bottom:6px solid var(--official-gold);
+    color:#fff;
+    text-align:center;
+  }
+  .official-ui .portal-hero::after {
+    content:'';
+    position:absolute;
+    inset:0;
+    z-index:-1;
+    background:linear-gradient(#170f0d44,#170f0d9c);
+  }
+  .official-ui .portal-photos { position:absolute; inset:0; z-index:-2; }
+  .official-ui .portal-photos img {
+    position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+    object-position:center 49%; opacity:0; transition:opacity 1.2s;
+  }
+  .official-ui .portal-photos img.is-current { opacity:1; }
+  .official-ui .portal-hero h1 {
+    margin:0; padding:24px;
+    font-size:clamp(34px,5vw,64px); font-weight:500; letter-spacing:.07em;
+    text-shadow:0 2px 24px #000a;
+    animation:official-appear .55s ease-out;
+  }
+  .official-ui #apps { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .official-ui .app-link {
+    border:1px solid var(--official-line); border-radius:6px; box-shadow:none;
+    transition:background-color .2s, border-color .2s, transform .2s;
+  }
+  .official-ui .app-link:hover { background:#fffaf0; border-color:#dfc88b; transform:translateY(-2px); }
+  .official-ui .app-icon { background:#f6cd5444; color:var(--official-ink); border-radius:5px; }
+  @keyframes official-appear { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+  @media (max-width:720px) {
+    .official-ui body > header { min-height:64px; }
+    .official-ui #apps { grid-template-columns:1fr; }
+    .official-ui body:has(.portal-hero) > header {
+    position:absolute;
+    inset:0 0 auto;
+    z-index:5;
+    margin:0;
+    background:linear-gradient(#0008,#0000);
+    border-bottom:1px solid #ffffff66;
+  }
+  .official-ui .portal-hero { min-height:210px; }
+  }
+  @media (prefers-reduced-motion:reduce) {
+    .official-ui { scroll-behavior:auto; }
+    .official-ui .portal-hero h1, .official-ui body:not(.authenticated) > .auth-gate { animation:none; }
+    .official-ui .portal-photos img,.official-ui .app-link { transition:none; }
+    .official-ui .app-link:hover { transform:none; }
+  }
+}
