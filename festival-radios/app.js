@@ -1,4 +1,4 @@
-import '../assets/account-header.js';
+import '../assets/account-header.js?v=lmc-dialog-1';
 import {config} from './config.js';
 import {setupAdmin} from './admin.js?v=20261015-model';
 const $=id=>document.getElementById(id);

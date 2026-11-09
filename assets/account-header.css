@@ -15,26 +15,49 @@ urakata-account { display:block; flex:0 0 auto; margin-inline-start:auto; color:
     padding-inline:32px;
   }
 }
-urakata-account details { position:relative; margin:0; padding:0; }
-urakata-account summary {
-  width:42px; height:42px; min-height:42px; box-sizing:border-box; display:flex; align-items:center; justify-content:center;
-  list-style:none; cursor:pointer; border:1px solid #d5dbe3; border-radius:50%;
+urakata-account .account-trigger {
+  width:42px; height:42px; min-height:42px; box-sizing:border-box;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; border:1px solid #d5dbe3; border-radius:50%;
   background:#e1e5eb; color:#475467; padding:0;
 }
-urakata-account details > summary::after { content:none; }
-urakata-account summary::-webkit-details-marker { display:none; }
-urakata-account summary:focus-visible { outline:2px solid #0b57d0; outline-offset:3px; }
+urakata-account .account-trigger:focus-visible { outline:2px solid #0b57d0; outline-offset:3px; }
 urakata-account img { display:block; box-sizing:border-box; width:34px; height:34px; object-fit:cover; border-radius:50%; border:2px solid white; }
-urakata-account img[hidden] { display:none; }
-urakata-account .account-popover {
-  position:absolute; z-index:120; inset-inline-end:0; top:calc(100% + 8px);
-  min-width:190px; padding:12px; background:#fff; border:1px solid #dfe4ed;
-  border-radius:12px; box-shadow:0 8px 22px #1f29371c; display:grid; gap:7px;
+.account-dialog-open { overflow:hidden; }
+dialog.urakata-profile-dialog {
+  box-sizing:border-box; width:min(420px, calc(100% - 32px)); max-width:none;
+  max-height:calc(100dvh - 32px); padding:0; border:0; border-radius:24px;
+  background:#fff; color:#0f1419; box-shadow:0 24px 70px #0f172a47;
 }
-urakata-account .account-popover span { color:#475467; font-size:12px; font-weight:500; }
-urakata-account .account-popover strong { overflow-wrap:anywhere; }
-urakata-account .account-popover button {
-  font:inherit; text-align:start; min-height:36px; padding:6px 9px; color:#0b57d0;
-  background:#f3f6fb; border:0; border-radius:7px; cursor:pointer;
+dialog.urakata-profile-dialog[open] { animation:account-profile-enter .22s cubic-bezier(.2,.8,.2,1); }
+dialog.urakata-profile-dialog::backdrop { background:#0f172a6b; backdrop-filter:blur(4px); }
+.urakata-profile-dialog .account-cover { position:relative; height:112px; background:linear-gradient(135deg,#c2e7ff,#0b57d0); }
+.urakata-profile-dialog .account-close {
+  position:absolute; top:14px; right:14px; padding:0; display:grid; place-items:center;
+  width:34px; height:34px; min-height:34px; border:0; border-radius:50%;
+  color:white; background:#0f172a66; font-size:24px; cursor:pointer;
 }
-@media print { urakata-account { display:none!important; } }
+.urakata-profile-dialog .account-body { padding:0 20px 22px; }
+.urakata-profile-dialog .account-avatar {
+  box-sizing:border-box; position:relative; display:grid; place-items:center;
+  width:82px; height:82px; margin-top:-42px; border-radius:50%;
+  border:4px solid white; background:#eef4ff; color:#475467; box-shadow:0 4px 14px #0f172a24;
+}
+.urakata-profile-dialog .account-avatar img { width:74px; height:74px; object-fit:cover; border-radius:50%; }
+.urakata-profile-dialog .account-avatar svg { width:34px; height:34px; }
+.urakata-profile-dialog .account-name { display:block; margin-top:8px; font-size:22px; line-height:1.25; overflow-wrap:anywhere; }
+.urakata-profile-dialog .account-subtitle { margin:4px 0 0; color:#536471; font-size:13px; }
+.urakata-profile-dialog .account-main-action,
+.urakata-profile-dialog .account-session-action {
+  box-sizing:border-box; display:block; width:100%; margin-top:14px; padding:12px 16px;
+  text-align:center; text-decoration:none; font:inherit; font-size:14px; font-weight:700;
+  border:0; border-radius:999px; background:#0b57d0; color:#fff; cursor:pointer;
+}
+.urakata-profile-dialog.signed-in .account-session-action { background:#eef3fb; color:#0b57d0; }
+urakata-account [hidden], .urakata-profile-dialog [hidden] { display:none!important; }
+@keyframes account-profile-enter { from { opacity:.7; transform:translateY(24px); } to { opacity:1; transform:translateY(0); } }
+@media screen and (max-width:699px) {
+  dialog.urakata-profile-dialog { margin:auto auto max(16px,env(safe-area-inset-bottom)); border-radius:26px; }
+}
+@media (prefers-reduced-motion:reduce) { dialog.urakata-profile-dialog[open] { animation:none; } }
+@media print { urakata-account,dialog.urakata-profile-dialog { display:none!important; } }

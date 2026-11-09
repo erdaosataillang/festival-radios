@@ -1,4 +1,4 @@
-import '../assets/account-header.js';
+import '../assets/account-header.js?v=lmc-dialog-1';
 import { setupSealLibrary } from '../assets/seal-library.js';
 const API='https://asia-northeast1-urakata-app.cloudfunctions.net/receiptApi';
 const REDIRECT='https://app.urakatabu.com/recipt/';

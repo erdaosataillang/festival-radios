@@ -1,4 +1,4 @@
-import './account-header.js';
+import './account-header.js?v=lmc-dialog-1';
 
 const account = document.querySelector('urakata-account');
 const login = () => location.assign('./invoice/');
