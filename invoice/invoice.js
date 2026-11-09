@@ -47,7 +47,7 @@ function render(){
  rect(0,0,595.2756,841.8898,'#fff');
  text('発行日　'+date(d.date),352,69,8,146);line(350,72,500,72);text(d.number?'No.'+d.number:'No. 発行時に付与',352,82,8,146);line(350,85,500,85);
  text(title,307,109,17,240,'middle',700,'"Yu Mincho","Hiragino Mincho ProN",serif');
- text(d.recipient,97,147,9,182);text(d.honorific,282,151,9,30);line(94,156,314,156);
+ text(d.recipient,97,147,9,182,'start',500);text(d.honorific,282,151,9,30);line(94,156,314,156);
  text(d.issuer,354,165,8,92);wrap(d.address,354,179,91,7.5,4);text(d.phone?'TEL: '+d.phone:'',354,222,7.5,92);
  rect(449,169,51,70,'none','#777');rect(354,242,146,50,'none','#777');line(403,242,403,292,.5,'#777');line(451,242,451,292,.5,'#777');
  text('件　　名：',97,196,8);text(d.subject,138,196,8,176);line(135,205,314,205);text('納 品 日：',97,216,8);text(date(d.deliveryDate),138,216,8,176);line(135,219,314,219);text((estimate?'見積有効期限：':'お支払い期限：')+date(d.dueDate),97,230,8,218);
