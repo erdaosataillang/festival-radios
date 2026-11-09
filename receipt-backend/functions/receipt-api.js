@@ -15,7 +15,7 @@ function createHandler({auth,db,Timestamp,webauthn,now=()=>Date.now()}){
   if(claims.line!==true||claims.registered!==true)fail(403,'登録済みの裏方アカウントが必要です。');
   const user=await db.doc('users/'+claims.uid).get(),data=user.data();
   if(!user.exists||data.disabled===true||data.active===false||data.receiptAccess===false||typeof data.name!=='string'||!data.name.trim())fail(403,'このアカウントは利用できません。');
-  return {uid:claims.uid,name:data.name.trim().slice(0,80),authTime:claims.auth_time};
+  return {uid:claims.uid,name:data.name.trim().slice(0,80),icon:typeof data.icon==='string'?data.icon:null,authTime:claims.auth_time};
  }
  const credentials=uid=>db.collection('receiptUsers').doc(uid).collection('credentials');
  const sealRef=uid=>db.doc('receiptUsers/'+uid+'/settings/seal');
@@ -51,7 +51,7 @@ function createHandler({auth,db,Timestamp,webauthn,now=()=>Date.now()}){
    }
    const user=await identity(req);
    const refs=credentials(user.uid);
-   if(req.method==='GET'&&req.path==='/me'){const [keys,issuer,seal]=await Promise.all([refs.limit(10).get(),registeredIssuer(user.uid),sealRef(user.uid).get()]);res.json({profile:{id:user.uid,name:user.name},passkeys:keys.size,issuer,seal:seal.exists?{...seal.data(),updatedAt:seal.get('updatedAt').toMillis()}:null});return;}
+   if(req.method==='GET'&&req.path==='/me'){const [keys,issuer,seal]=await Promise.all([refs.limit(10).get(),registeredIssuer(user.uid),sealRef(user.uid).get()]);res.json({profile:{id:user.uid,name:user.name,icon:user.icon},passkeys:keys.size,issuer,seal:seal.exists?{...seal.data(),updatedAt:seal.get('updatedAt').toMillis()}:null});return;}
    if(origin!==APP)fail(403,'裏方部アプリから操作してください。');
    if(req.path==='/seal'&&req.method==='GET'){
     const seal=await sealRef(user.uid).get();res.json({seal:seal.exists?{...seal.data(),updatedAt:seal.get('updatedAt').toMillis()}:null});return;

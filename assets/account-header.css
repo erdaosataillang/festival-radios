@@ -1,0 +1,22 @@
+urakata-account { display:block; flex:0 0 auto; margin-inline-start:auto; color:#1f2937; font-size:14px; }
+urakata-account details { position:relative; }
+urakata-account summary {
+  width:42px; height:42px; box-sizing:border-box; display:grid; place-items:center;
+  list-style:none; cursor:pointer; border:1px solid #d9e2ef; border-radius:50%;
+  background:#eef4ff; color:#245ab7; padding:3px;
+}
+urakata-account summary::-webkit-details-marker { display:none; }
+urakata-account summary:focus-visible { outline:2px solid #0b57d0; outline-offset:3px; }
+urakata-account img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
+urakata-account .account-popover {
+  position:absolute; z-index:120; inset-inline-end:0; top:calc(100% + 8px);
+  min-width:190px; padding:12px; background:#fff; border:1px solid #dfe4ed;
+  border-radius:12px; box-shadow:0 8px 22px #1f29371c; display:grid; gap:7px;
+}
+urakata-account .account-popover span { color:#475467; font-size:12px; font-weight:500; }
+urakata-account .account-popover strong { overflow-wrap:anywhere; }
+urakata-account .account-popover button {
+  font:inherit; text-align:start; min-height:36px; padding:6px 9px; color:#0b57d0;
+  background:#f3f6fb; border:0; border-radius:7px; cursor:pointer;
+}
+@media print { urakata-account { display:none!important; } }

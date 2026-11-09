@@ -1,3 +1,4 @@
+import '../assets/account-header.js';
 import { setupSealLibrary } from '../assets/seal-library.js';
 const API='https://asia-northeast1-urakata-app.cloudfunctions.net/receiptApi';
 const REDIRECT='https://app.urakatabu.com/invoice/';
@@ -13,7 +14,10 @@ function showAuthStatus(message, pending = false, retry = false) {
  el('login-receipt').disabled = pending;
  el('retry-session').hidden = !retry;
 }
-function lock(message){profile=null;issuer=null;savedSeal=null;if(el('issuer-dialog')?.open)el('issuer-dialog').close();document.body.classList.remove('authenticated');sealLibrary.clear();showAuthStatus(message);}
+function updateAccountHeader(){
+ document.querySelector('urakata-account').setProfile(profile,{login,logout:()=>el('logout-receipt').click()});
+}
+function lock(message){profile=null;issuer=null;savedSeal=null;if(el('issuer-dialog')?.open)el('issuer-dialog').close();document.body.classList.remove('authenticated');sealLibrary.clear();updateAccountHeader();showAuthStatus(message);}
 async function api(path,body){
  const headers={'Content-Type':'application/json'};if(path!=='/auth/exchange'&&auth?.currentUser)headers.Authorization='Bearer '+await auth.currentUser.getIdToken();
  const controller = new AbortController();
@@ -102,6 +106,7 @@ async function authorizeIssue(blob,receipt){
  refreshHistory().catch(()=>{});return result;
 }
 window.receiptSession={get profile(){return profile},get issuer(){return issuer},authorizeIssue,login,saveDraft,nextInvoiceNumber:async()=> (await api('/invoices/next-number')).number,refreshHistory,editIssuer,applyIssuer};
+updateAccountHeader();
 el('login-receipt').onclick=login;el('register-passkey').onclick=registerPasskey;
 el('logout-receipt').onclick=async()=>{await fb.signOut(auth);location.reload()};
 function issuedId() {
@@ -144,7 +149,7 @@ async function start(){
   pendingLoginToken = undefined;
  }
  if(!auth.currentUser){lock('登録済みの裏方アカウントでログインしてください。');return;}
- const result=await api('/me');profile=result.profile;passkeys=result.passkeys;issuer=result.issuer;savedSeal=result.seal;sealLibrary.load(savedSeal);describePasskeys();showAuthStatus('ログインしました。');document.body.classList.add('authenticated');
+ const result=await api('/me');profile=result.profile;updateAccountHeader();passkeys=result.passkeys;issuer=result.issuer;savedSeal=result.seal;sealLibrary.load(savedSeal);describePasskeys();showAuthStatus('ログインしました。');document.body.classList.add('authenticated');
  const linkedDocument = issuedId();
  if (linkedDocument) {
   observeSession();
