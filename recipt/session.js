@@ -61,9 +61,9 @@ function editIssuer(){
 async function refreshHistory(){
  const result=await api('/history');window.dispatchEvent(new CustomEvent('receipt-cloud-history',{detail:result.records}));return result.records;
 }
-async function saveDraft(receipt){
+async function saveDraft(receipt,draftId){
  if(!issuer){editIssuer();throw new Error('先に発行者情報を登録してください。');}
- return api('/drafts',{receipt,issuerVersion:issuer.version});
+ return api('/drafts',{receipt,draftId,issuerVersion:issuer.version});
 }
 el('issuer-profile-form').onsubmit=async event=>{
  event.preventDefault();const button=el('issuer-dialog-save');button.disabled=true;el('issuer-dialog-status').textContent='保存中…';
@@ -99,7 +99,7 @@ async function authorizeIssue(blob,receipt){
  if(!result.ok||result.pdfHash!==pdfHash)throw new Error('発行確認に失敗しました。');
  refreshHistory().catch(()=>{});return result;
 }
-window.receiptSession={get profile(){return profile},get issuer(){return issuer},authorizeIssue,login,saveDraft,refreshHistory,editIssuer,applyIssuer};
+window.receiptSession={get profile(){return profile},get issuer(){return issuer},authorizeIssue,login,saveDraft,nextNumbers:()=>api('/next-number'),refreshHistory,editIssuer,applyIssuer};
 el('login-receipt').onclick=login;el('register-passkey').onclick=registerPasskey;
 el('logout-receipt').onclick=async()=>{await fb.signOut(auth);location.reload()};
 function issuedId() {

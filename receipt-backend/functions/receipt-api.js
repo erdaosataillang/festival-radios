@@ -93,6 +93,13 @@ function createHandler({auth,db,Timestamp,webauthn,now=()=>Date.now()}){
    if(req.method==='GET'&&req.path==='/invoices/next-number'){
     res.json({number:String(nextInvoiceNumber(await invoiceSequence.get()))});return;
    }
+   const receiptYear = () => new Intl.DateTimeFormat('en',{year:'numeric',timeZone:'Asia/Tokyo'}).format(now());
+   const annualSequence = year => db.doc('receiptSettings/receiptSequence-'+year);
+   const permanentSequence = db.doc('receiptSettings/receiptPermanentSequence');
+   if(req.method==='GET'&&req.path==='/next-number'){
+    const [annual,permanent]=await Promise.all([annualSequence(receiptYear()).get(),permanentSequence.get()]);
+    res.json({number:String(annual.get('next')??20),permanent:String(permanent.get('next')??120)});return;
+   }
    const issuedMatch = req.path.match(/^\/(invoices\/)?issued\/([A-Za-z0-9]{20})$/);
    if (req.method === 'GET' && issuedMatch) {
     const record = await records(user.uid, issuedMatch[1] ? 'invoices' : 'receipts').doc(issuedMatch[2]).get();
@@ -102,10 +109,11 @@ function createHandler({auth,db,Timestamp,webauthn,now=()=>Date.now()}){
    }
    if(['/drafts','/invoices/drafts'].includes(req.path)&&req.method==='POST'){
     const registered=await registeredIssuer(user.uid);
-    const receipt=invoiceMode?invoiceData.invoice(body.receipt,registered,body.issuerVersion,{draft:true}):receiptData.receipt(body.receipt,registered,body.issuerVersion);
+    const separateDraft=invoiceMode||Object.hasOwn(body,'draftId');
+    const receipt=invoiceMode?invoiceData.invoice(body.receipt,registered,body.issuerVersion,{draft:true}):receiptData.receipt(body.receipt,registered,body.issuerVersion,{draft:separateDraft});
     const drafts=records(user.uid,invoiceMode?'invoiceDrafts':'drafts');
-    if(invoiceMode&&body.draftId!=null&&!/^[A-Za-z0-9_-]{20,43}$/.test(body.draftId))fail(400,'下書きが見つかりません。');
-    const ref=invoiceMode?(body.draftId?drafts.doc(body.draftId):drafts.doc()):drafts.doc(hash(receipt.number+'\0'+receipt.permanent));
+    if(separateDraft&&body.draftId!=null&&!/^[A-Za-z0-9_-]{20,43}$/.test(body.draftId))fail(400,'下書きが見つかりません。');
+    const ref=separateDraft?(body.draftId?drafts.doc(body.draftId):drafts.doc()):drafts.doc(hash(receipt.number+'\0'+receipt.permanent));
     const updatedAt=Timestamp.fromMillis(now());
     await db.runTransaction(async t=>{const issuer=await t.get(issuerRef(user.uid)),draft=await t.get(ref);if(!issuer.exists||issuer.get('version')!==registered.version)fail(409,'発行者情報が更新されました。再読み込みしてください。');const data={uid:user.uid,receipt,updatedAt};if(draft.exists)t.update(ref,data);else t.create(ref,data);});
     res.json({ok:true,id:ref.id});return;
@@ -135,6 +143,13 @@ function createHandler({auth,db,Timestamp,webauthn,now=()=>Date.now()}){
     const registered=await registeredIssuer(user.uid),receipt=(invoiceMode?invoiceData.invoice:receiptData.receipt)(body.receipt,registered,body.issuerVersion);
     if(body.receipt.issuer!==receipt.issuer||body.receipt.address!==receipt.address||body.receipt.phone!==receipt.phone)fail(409,'登録済みの発行者情報を反映してから発行してください。');
     if(invoiceMode&&receipt.number!==String(nextInvoiceNumber(await invoiceSequence.get())))fail(409,'請求書番号が更新されました。もう一度発行してください。');
+    if(!invoiceMode){
+     const year=receiptYear();
+     const [annual,permanent]=await Promise.all([annualSequence(year).get(),permanentSequence.get()]);
+     if(receipt.number!==String(annual.get('next')??20)||receipt.permanent!==String(permanent.get('next')??120))
+      fail(409,'伝票番号が更新されました。もう一度発行してください。');
+     receipt.sequenceYear=year;
+    }
     if(invoiceMode&&['name','branch','type','number','holder'].some(key=>body.receipt.bank?.[key]!==receipt.bank[key]))fail(409,'登録済みの振込先を反映してから発行してください。');
     const options=await webauthn.generateAuthenticationOptions({rpID:RP,userVerification:'required',allowCredentials:keys.docs.map(d=>({id:d.get('credentialId'),transports:d.get('transports')}))});
     res.json(await challenge(user,invoiceMode?'invoice-issuance':'issuance',options,body.pdfHash,receipt));return;
@@ -153,6 +168,16 @@ function createHandler({auth,db,Timestamp,webauthn,now=()=>Date.now()}){
      if(snapshot.number!==String(next))fail(409,'別の請求書が先に発行されました。もう一度発行してください。');
      if(sequence.exists)t.update(invoiceSequence,{next:next+1});
      else t.create(invoiceSequence,{next:next+1});
+    } else {
+     const year=receiptYear(),annualRef=annualSequence(year);
+     const [annual,permanent]=await Promise.all([t.get(annualRef),t.get(permanentSequence)]);
+     const next=annual.get('next')??20, forever=permanent.get('next')??120;
+     if(snapshot.sequenceYear!==year||snapshot.number!==String(next)||snapshot.permanent!==String(forever))
+      fail(409,'伝票番号が更新されました。もう一度発行してください。');
+     if(annual.exists)t.update(annualRef,{next:next+1});
+     else t.create(annualRef,{next:next+1});
+     if(permanent.exists)t.update(permanentSequence,{next:forever+1});
+     else t.create(permanentSequence,{next:forever+1});
     }
     const issuedAt=Timestamp.fromMillis(now());t.update(keyRef,{counter:verification.authenticationInfo.newCounter,lastUsedAt:issuedAt});t.create(issuance,{uid:user.uid,actorName:user.name,documentType,...(invoiceMode?{documentVariant:snapshot.documentVariant??'invoice'}:{}),pdfHash:body.pdfHash,credential:hash(body.response.id),issuedAt});t.create(record,{uid:user.uid,documentType,actorName:user.name,receipt:fresh.get('receipt'),pdfHash:body.pdfHash,issuedAt});t.delete(ref);});
     res.json({ok:true,issuanceId:issuance.id,pdfHash:body.pdfHash});return;

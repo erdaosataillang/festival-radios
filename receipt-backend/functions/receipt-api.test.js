@@ -4,7 +4,7 @@ const {createHash}=require('node:crypto');
 const {createHandler}=require('./receipt-api');
 const APP='https://app.urakatabu.com',ACCOUNT='https://lmc-mobile.sorairosystem.com';
 const hash=x=>createHash('sha256').update(x).digest('base64url');
-const sample={recipient:'宛先',honorific:'御中',date:'2026-11-04',amount:'24000',purpose:'費用として',detail:'内訳',number:'10',permanent:'20',note:'',issuer:'テスト発行者',address:'テスト住所',phone:'090-0000-0000',seal:'hide',sealName:'',sealShape:'round',sealFont:'mincho',signatureMode:'unsigned'};
+const sample={recipient:'宛先',honorific:'御中',date:'2026-11-04',amount:'24000',purpose:'費用として',detail:'内訳',number:'20',permanent:'120',note:'',issuer:'テスト発行者',address:'テスト住所',phone:'090-0000-0000',seal:'hide',sealName:'',sealShape:'round',sealFont:'mincho',signatureMode:'unsigned'};
 function setup({claims={uid:'user1',line:true,registered:true,auth_time:1000},user={name:'テスト'},verified=true,uv=true,realVerifier=false,issuerProfile={name:sample.issuer,address:sample.address,phone:sample.phone,version:1}}={}){
  let clock=1000000,writes=0;
  const rows=new Map([['users/user1',user],['users/user2',{name:'別のユーザー'}]]);
@@ -24,7 +24,7 @@ function setup({claims={uid:'user1',line:true,registered:true,auth_time:1000},us
  const handler=createHandler({auth:{verifyIdToken:async()=>{if(!claims)throw Error('no token');return claims},getUser:async()=>({disabled:false}),createCustomToken:async uid=>'test-token-'+uid},db,Timestamp:{fromMillis:stamp},webauthn:realVerifier?require('@simplewebauthn/server'):fake,now:()=>clock});
  const call=async(path,body,origin=APP)=>{if(path==='/issue/options'&&body)body={receipt:{...sample},issuerVersion:1,...body};const res={code:200,set(){},status(code){this.code=code;return this},json(body){this.body=body},send(){}};await handler({path,method:body?'POST':'GET',body,get:name=>name==='origin'?origin:'Bearer test'},res);return res};
  const key=(uid='user1')=>rows.set('receiptUsers/'+uid+'/credentials/'+hash('key1'),{credentialId:'key1',publicKey:'AQID',counter:0,transports:['internal']});
- return {call,rows,key,expire:()=>clock+=180000,get writes(){return writes}};
+ return {call,rows,key,setTime:value=>{clock=value},expire:()=>clock+=180000,get writes(){return writes}};
 }
 test('匿名は機能・発行APIにアクセスできない',async()=>{const s=setup({claims:null});for(const path of ['/me','/issue/options','/issue/verify','/passkeys/register/options'])assert.equal((await s.call(path,path==='/me'?undefined:{})).code,401);assert.equal(s.writes,0)});
 test('LINE登録クレームがない・利用停止のアカウントを拒否',async()=>{for(const options of [{claims:{uid:'user1'}},{user:{name:'テスト',disabled:true}},{user:{name:'テスト',receiptAccess:false}}])assert.equal((await setup(options).call('/me')).code,403)});
@@ -34,7 +34,7 @@ test('パスキー登録には最近のLMCログインが必要',async()=>{asser
 test('登録時の本人確認なし応答を拒否',async()=>{const s=setup({uv:false});const r=await s.call('/passkeys/register/options',{});assert.equal((await s.call('/passkeys/register/verify',{challengeId:r.body.challengeId,response:{}})).code,401);assert.equal([...s.rows.keys()].some(k=>k.includes('/credentials/')),false)});
 test('パスキー未登録では発行要求を拒否',async()=>{assert.equal((await setup().call('/issue/options',{pdfHash:'a'.repeat(64)})).code,409)});
 test('別ユーザーのパスキーを発行に利用できない',async()=>{const s=setup();s.key('user2');const id='a'.repeat(32);s.rows.set('receiptChallenges/'+id,{uid:'user1',kind:'issuance',challenge:'issue-challenge',pdfHash:'a'.repeat(64),expiresAt:{toMillis:()=>2000000}});assert.equal((await s.call('/issue/verify',{challengeId:id,pdfHash:'a'.repeat(64),response:{id:'key1'}})).code,403)});
-test('PDF差し替え・期限切れ・同じ認証の再利用を拒否',async()=>{const s=setup();s.key();const r=await s.call('/issue/options',{pdfHash:'a'.repeat(64)});const body={challengeId:r.body.challengeId,pdfHash:'a'.repeat(64),response:{id:'key1',response:{userHandle:Buffer.from('user1').toString('base64url')}}};assert.equal((await s.call('/issue/verify',{...body,pdfHash:'b'.repeat(64)})).code,400);assert.equal((await s.call('/issue/verify',body)).code,200);assert.equal((await s.call('/issue/verify',body)).code,401);assert.equal([...s.rows.keys()].filter(k=>k.startsWith('receiptIssuances/')).length,1);const expired=await s.call('/issue/options',{pdfHash:'a'.repeat(64)});s.expire();assert.equal((await s.call('/issue/verify',{...body,challengeId:expired.body.challengeId})).code,401)});
+test('PDF差し替え・期限切れ・同じ認証の再利用を拒否',async()=>{const s=setup();s.key();const r=await s.call('/issue/options',{pdfHash:'a'.repeat(64)});const body={challengeId:r.body.challengeId,pdfHash:'a'.repeat(64),response:{id:'key1',response:{userHandle:Buffer.from('user1').toString('base64url')}}};assert.equal((await s.call('/issue/verify',{...body,pdfHash:'b'.repeat(64)})).code,400);assert.equal((await s.call('/issue/verify',body)).code,200);assert.equal((await s.call('/issue/verify',body)).code,401);assert.equal([...s.rows.keys()].filter(k=>k.startsWith('receiptIssuances/')).length,1);const expired=await s.call('/issue/options',{pdfHash:'a'.repeat(64),receipt:{...sample,number:'21',permanent:'121'}});s.expire();assert.equal((await s.call('/issue/verify',{...body,challengeId:expired.body.challengeId})).code,401)});
 test('userHandleの別アカウント偽装を拒否',async()=>{const s=setup();s.key();const r=await s.call('/issue/options',{pdfHash:'a'.repeat(64)});assert.equal((await s.call('/issue/verify',{challengeId:r.body.challengeId,pdfHash:'a'.repeat(64),response:{id:'key1',response:{userHandle:Buffer.from('user2').toString('base64url')}}})).code,403)});
 test('本人確認なし・署名検証失敗では発行記録を作らない',async()=>{for(const options of [{uv:false},{verified:false}]){const s=setup(options);s.key();const r=await s.call('/issue/options',{pdfHash:'a'.repeat(64)});assert.equal((await s.call('/issue/verify',{challengeId:r.body.challengeId,pdfHash:'a'.repeat(64),response:{id:'key1'}})).code,401);assert.equal([...s.rows.keys()].some(k=>k.startsWith('receiptIssuances/')),false)}});
 test('実検証ライブラリで不正なWebAuthn応答を拒否',async()=>{const s=setup({realVerifier:true});s.key();const id='a'.repeat(32);s.rows.set('receiptChallenges/'+id,{uid:'user1',kind:'issuance',challenge:'issue-challenge',pdfHash:'a'.repeat(64),expiresAt:{toMillis:()=>2000000}});assert.equal((await s.call('/issue/verify',{challengeId:id,pdfHash:'a'.repeat(64),response:{id:'key1',response:{}}})).code,401)});
@@ -91,4 +91,22 @@ test('登録済みの印鑑を引き継ぎ、別名の印鑑を追加できる',
  assert.deepEqual((await s.call('/me')).body.seal.seals,r.body.seals);
  assert.equal((await s.call('/seals',{name:'取引用',seal:sealSample})).code,409);
  assert.equal((await setup({claims:null}).call('/seals',{name:'取引用',seal:sealSample})).code,401);
+});
+
+test('伝票は日本時間の年ごとに20から、永久伝票は120から通算する',async()=>{
+ const s=setup();s.key();
+ s.setTime(Date.parse('2026-12-31T14:59:00Z'));
+ const numbers=async()=>(await s.call('/next-number')).body;
+ const prepare=receipt=>s.call('/issue/options',{pdfHash:'a'.repeat(64),receipt:{...sample,...receipt}});
+ const verify=prepared=>s.call('/issue/verify',{challengeId:prepared.body.challengeId,pdfHash:'a'.repeat(64),response:{id:'key1'}});
+ assert.deepEqual(await numbers(),{number:'20',permanent:'120'});
+ assert.equal((await prepare({number:'99'})).code,409);
+ assert.equal((await verify(await prepare(await numbers()))).code,200);
+ assert.deepEqual(await numbers(),{number:'21',permanent:'121'});
+ const old=await prepare(await numbers());
+ s.setTime(Date.parse('2026-12-31T15:00:00Z'));
+ assert.equal((await verify(old)).code,409);
+ assert.deepEqual(await numbers(),{number:'20',permanent:'121'});
+ assert.equal((await verify(await prepare(await numbers()))).code,200);
+ assert.deepEqual(await numbers(),{number:'21',permanent:'122'});
 });
