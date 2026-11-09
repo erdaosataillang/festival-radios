@@ -30,10 +30,16 @@ function render(){
  const wrap=(value,x,y,width,size=8,maxLines=4)=>{const strings=[];let current='';for(const char of String(value||'')){if(char==='\n'||[...current].reduce((sum,c)=>sum+(c.charCodeAt(0)>255?size:size*.55),0)+(char.charCodeAt(0)>255?size:size*.55)>width){strings.push(current);current=char==='\n'?'':char}else current+=char}if(current)strings.push(current);strings.slice(0,maxLines).forEach((s,i)=>text(i===maxLines-1?strings.slice(i).join(''):s,x,y+i*(size+2),size,width))};
  const editCell=(id,x,y,width,height,label)=>{
   if(issuedSnapshot)return;
-  const cell=svgElement('rect',{x,y,width,height,fill:'transparent',class:'invoice-edit-cell',tabindex:'0',role:'button','aria-label':label,'data-field':id});
-  cell.addEventListener('click',()=>editPreviewCell(cell,id,label));
+  const cell=svgElement('rect',{x,y,width,height,fill:'transparent',class:'document-edit-cell',tabindex:'0',role:'button','aria-label':label,'data-field':id});
+  const addItem=name=>{
+   if(items.length>=25)return;
+   items.push({name,quantity:'1',unitPrice:'0'});
+   renderItems();
+   render();
+  };
+  cell.addEventListener('click',()=>editPreviewCell(cell,id,label,addItem));
   cell.addEventListener('keydown',event=>{
-   if(event.key==='Enter'||event.key===' '){event.preventDefault();editPreviewCell(cell,id,label);}
+   if(event.key==='Enter'||event.key===' '){event.preventDefault();editPreviewCell(cell,id,label,addItem);}
   });
   svg.append(cell);
  };
@@ -79,64 +85,6 @@ function render(){
  const bankSummary=el('bank-summary');bankSummary.textContent=bank.name?[bank.name+'（'+bank.type+'）',bank.branch+'　'+bank.number,bank.holder].join('\n'):'振込先は未登録です。';
  const link=el('pdf-download');if(link.dataset.signature!==JSON.stringify(d)){link.hidden=true;el('pdf-status').textContent='';if(!el('print-preview').disabled)el('print-preview').textContent='本人確認して発行'}
 }
-let previewEditor;
-function editPreviewCell(cell,id,label){
- if(previewEditor||el('print-preview').disabled)return;
- const source=el(id);
- if(!source&&!/^item-\d+-name$/.test(id))return;
- const editor=source?source.cloneNode(true):document.createElement('input');
- editor.removeAttribute('id');
- editor.removeAttribute('name');
- editor.className='invoice-cell-editor';
- editor.setAttribute('aria-label',label);
- editor.value=source?.value??'';
- if(!source)editor.maxLength=80;
- const bounds=cell.getBoundingClientRect();
- const width=Math.min(window.innerWidth-16,Math.max(bounds.width,editor.type==='date'?150:115));
- editor.style.width=width+'px';
- editor.style.left=Math.max(8,Math.min(bounds.left,window.innerWidth-width-8))+'px';
- editor.style.top=Math.max(8,Math.min(bounds.top,window.innerHeight-58))+'px';
- previewEditor=editor;
- document.body.append(editor);
-
- const finish=(commit,nextId)=>{
-  if(previewEditor!==editor)return;
-  previewEditor=null;
-  editor.remove();
-  window.removeEventListener('resize',cancel);
-  window.removeEventListener('scroll',cancel,true);
-  if(commit){
-   if(source){
-    source.value=editor.value;
-    source.dispatchEvent(new Event('input',{bubbles:true}));
-   }else if(editor.value.trim()){
-    items.push({name:editor.value,quantity:'1',unitPrice:'0'});
-    renderItems();
-    render();
-   }
-  }
-  if(nextId){
-   document.querySelector('.invoice-edit-cell[data-field="'+nextId+'"]')?.focus();
-  }
- };
- const cancel=()=>finish(false);
- editor.addEventListener('blur',()=>finish(true));
- editor.addEventListener('keydown',event=>{
-  if(event.isComposing)return;
-  if(event.key==='Escape'){event.preventDefault();finish(false,id);}
-  else if(event.key==='Enter'&&editor.tagName!=='TEXTAREA'){event.preventDefault();finish(true,id);}
-  else if(event.key==='Tab'){
-   const cells=[...document.querySelectorAll('.invoice-edit-cell')];
-   const next=cells[cells.indexOf(cell)+(event.shiftKey?-1:1)];
-   if(next){event.preventDefault();finish(true,next.dataset.field);document.activeElement?.dispatchEvent(new MouseEvent('click'));}
-  }
- });
- window.addEventListener('resize',cancel);
- window.addEventListener('scroll',cancel,true);
- editor.focus({preventScroll:true});
- if(editor.type==='text'||editor.tagName==='TEXTAREA')editor.select();
-}
-
 window.openIssuedPreview = documentSnapshot => {
  issuedSnapshot = documentSnapshot;
  showView('preview');

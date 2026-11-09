@@ -67,7 +67,7 @@ async function saveDraft(receipt){
 }
 el('issuer-profile-form').onsubmit=async event=>{
  event.preventDefault();const button=el('issuer-dialog-save');button.disabled=true;el('issuer-dialog-status').textContent='保存中…';
- try{const result=await api('/issuer',{issuer:{name:el('profileIssuerName').value,address:el('profileIssuerAddress').value,phone:el('profileIssuerPhone').value},version:issuer?.version??null});issuer=result.issuer;applyIssuer();el('issuer-dialog').close();}
+ try{const result=await api('/issuer',{issuer:{name:el('profileIssuerName').value,address:el('profileIssuerAddress').value,phone:formatIssuerPhone(el('profileIssuerPhone').value)},version:issuer?.version??null});issuer=result.issuer;applyIssuer();el('issuer-dialog').close();}
  catch(error){el('issuer-dialog-status').textContent=error.message;}finally{button.disabled=false;}
 };
 el('issuer-dialog').addEventListener('cancel',event=>{if(!issuer)event.preventDefault()});
