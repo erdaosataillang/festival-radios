@@ -1,0 +1,51 @@
+@media screen {
+  .issued-view .bottom-nav,
+  .issued-view #input-view,
+  .issued-view #seal-view,
+  .issued-view #history-view,
+  .issued-view .preview-actions,
+  .issued-view #preview-view > .hint,
+  .issued-view #pdf-download,
+  .issued-view footer {
+    display: none !important;
+  }
+  #issued-panel { margin: 0 auto 16px; }
+}
+
+@media screen and (min-width: 1024px) {
+  body.authenticated:not(.issued-view) > main:has(#input-view:not([hidden])) {
+    max-width: 1480px;
+    padding: 24px 32px 48px;
+    display: grid;
+    grid-template-columns: minmax(340px, 480px) minmax(0, 1fr);
+    gap: 28px;
+    align-items: start;
+  }
+  body:not(.issued-view) main:has(#input-view:not([hidden])) #preview-view {
+    display: block;
+    min-width: 0;
+    position: sticky;
+    top: 24px;
+    max-height: calc(100dvh - 48px);
+    overflow: auto;
+  }
+  main:has(#input-view:not([hidden])) #preview-view .preview-actions,
+  main:has(#input-view:not([hidden])) #preview-view #pdf-download {
+    display: none;
+  }
+  body.authenticated:not(.issued-view) { display: flex; flex-direction: column; }
+  body.authenticated:not(.issued-view) > main { width: 100%; box-sizing: border-box; order: 3; }
+  body.authenticated:not(.issued-view) > .bottom-nav {
+    order: 2;
+    position: static;
+    padding: 4px 20px;
+    box-sizing: border-box;
+    background: #fff;
+  }
+  .nav-inner { margin: 0 auto; }
+  .nav-item { min-height: 44px; }
+}
+
+@media print {
+  #issued-panel { display: none !important; }
+}

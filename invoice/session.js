@@ -39,7 +39,7 @@ async function login(){
  showAuthStatus('ログイン画面へ移動しています。', true);
  try{const state=encode(crypto.getRandomValues(new Uint8Array(32))),verifier=encode(crypto.getRandomValues(new Uint8Array(48)));
  const challenge=encode(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier)));
- sessionStorage.setItem('invoice-login',JSON.stringify({state,verifier,at:Date.now()}));
+ sessionStorage.setItem('invoice-login',JSON.stringify({state,verifier,at:Date.now(),issued:issuedId()}));
  const url=new URL(AUTHORIZE);Object.entries({response_type:'code',client_id:'invoice',redirect_uri:REDIRECT,state,code_challenge:challenge,code_challenge_method:'S256'}).forEach(([key,value])=>url.searchParams.set(key,value));location.assign(url);
  }catch{lock('ログインを開始できませんでした。ブラウザの設定を確認してください。');}
 }
@@ -118,6 +118,22 @@ async function authorizeIssue(blob,receipt){
 window.receiptSession={get profile(){return profile},get issuer(){return issuer},authorizeIssue,login,saveDraft,refreshHistory,editIssuer,applyIssuer};
 el('login-receipt').onclick=login;el('register-passkey').onclick=registerPasskey;
 el('logout-receipt').onclick=async()=>{await fb.signOut(auth);location.reload()};
+function issuedId() {
+ const id = new URLSearchParams(location.search).get('issued');
+ return /^[A-Za-z0-9]{20}$/.test(id || '') ? id : null;
+}
+async function openIssuedDocument(id) {
+ document.body.classList.add('issued-view');
+ el('issued-panel').hidden = false;
+ el('issued-status').textContent = '発行記録を読み込んでいます。';
+ try {
+  const result = await api('/invoices/issued/' + id);
+  window.openIssuedPreview(result.document);
+  el('issued-status').textContent = '発行時の内容';
+ } catch (error) {
+  el('issued-status').textContent = error.message;
+ }
+}
 async function start(){
  showAuthStatus('ログインを確認しています。', true);
  if (!auth) {
@@ -127,7 +143,7 @@ async function start(){
  await auth.authStateReady();const params=new URLSearchParams(location.search);
  if(params.has('auth_code')){
   let saved;try{saved=JSON.parse(sessionStorage.getItem('invoice-login')||'null')}catch{}
-  const code=params.get('auth_code'),state=params.get('state');window.history.replaceState(null,'',location.pathname);sessionStorage.removeItem('invoice-login');
+  const code=params.get('auth_code'),state=params.get('state');window.history.replaceState(null,'',location.pathname+(/^[A-Za-z0-9]{20}$/.test(saved?.issued||'')?'?issued='+saved.issued:''));sessionStorage.removeItem('invoice-login');
   if(!saved||saved.state!==state||Date.now()-saved.at>600000)throw Object.assign(new Error('ログインの有効期限が切れました。もう一度ログインしてください。'),{status:400});
   const result=await api('/auth/exchange',{code,codeVerifier:saved.verifier,redirectUri:REDIRECT});pendingLoginToken=result.customToken;
  }
@@ -143,6 +159,12 @@ async function start(){
  }
  if(!auth.currentUser){lock('登録済みの裏方アカウントでログインしてください。');return;}
  const result=await api('/me');profile=result.profile;passkeys=result.passkeys;issuer=result.issuer;savedSeal=result.seal;applySavedSeal();describePasskeys();showAuthStatus('ログインしました。');document.body.classList.add('authenticated');
+ const linkedDocument = issuedId();
+ if (linkedDocument) {
+  observeSession();
+  await openIssuedDocument(linkedDocument);
+  return;
+ }
  if(issuer)applyIssuer();if(!issuer?.bank?.number)editIssuer();
  window.dispatchEvent(new Event('receipt-auth-ready'));
  refreshHistory().catch(()=>{el('cloud-history-status').textContent='履歴を読み込めませんでした。「再読み込み」を押してください。'});
@@ -178,7 +200,7 @@ async function refreshSession() {
   describePasskeys();
   if (current.issuer?.version !== issuer?.version) {
    issuer = current.issuer;
-   if (issuer) applyIssuer();
+   if (issuer && !issuedId()) applyIssuer();
   }
  } catch (error) {
   if (profile?.id === accountId && [401, 403].includes(error.status)) lock(error.message);

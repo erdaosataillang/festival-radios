@@ -17,8 +17,9 @@ function renderItems(){
  });el('add-item').disabled=items.length>=25;
 }
 function svgElement(tag,attributes={},text){const n=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const [key,value] of Object.entries(attributes))n.setAttribute(key,value);if(text!==undefined)n.textContent=text;return n;}
+let issuedSnapshot;
 function render(){
- const d=data(),svg=document.querySelector('.receipt-svg');svg.replaceChildren();let calc;try{calc=totals()}catch(error){el('totals').replaceChildren();const p=document.createElement('p');p.className='error';p.textContent=error.message;el('totals').append(p);calc={items:[],subtotal:0,tax:0,total:0}}
+ const d=issuedSnapshot||data(),svg=document.querySelector('.receipt-svg');svg.replaceChildren();let calc;try{calc=invoiceMath.calculate(d.items,Number(d.taxRate))}catch(error){el('totals').replaceChildren();const p=document.createElement('p');p.className='error';p.textContent=error.message;el('totals').append(p);calc={items:[],subtotal:0,tax:0,total:0}}
  if(calc.items.length){const summary=el('totals');summary.replaceChildren();for(const [label,value] of [['小計',calc.subtotal],['消費税',calc.tax],['税込合計',calc.total]]){const row=document.createElement('div'),a=document.createElement('span'),b=document.createElement('span');a.textContent=label;b.textContent='¥'+amount(value);row.append(a,b);summary.append(row)}}
  const line=(x,y,x2,y2,width=.5,color='#000')=>svg.append(svgElement('line',{x1:x,y1:y,x2,y2,stroke:color,'stroke-width':width}));
  const rect=(x,y,width,height,fill='none',stroke='none',strokeWidth=.5)=>svg.append(svgElement('rect',{x,y,width,height,fill,stroke,'stroke-width':strokeWidth}));
@@ -46,6 +47,10 @@ function render(){
  const bankSummary=el('bank-summary');bankSummary.textContent=bank.name?[bank.name+'（'+bank.type+'）',bank.branch+'　'+bank.number,bank.holder].join('\n'):'振込先は未登録です。';
  const link=el('pdf-download');if(link.dataset.signature!==JSON.stringify(d)){link.hidden=true;el('pdf-status').textContent='';if(!el('print-preview').disabled)el('print-preview').textContent='本人確認して発行'}
 }
+window.openIssuedPreview = documentSnapshot => {
+ issuedSnapshot = documentSnapshot;
+ showView('preview');
+};
 function status(message){el('status').textContent=message}
 function valid(){
  if(!window.receiptSession?.profile){el('auth-status').textContent='裏方アカウントでログインしてください。';return false}

@@ -20,7 +20,7 @@ exports.notifyDiscordIssuance=onDocumentCreated({
 }, async event=>{
   if (!event.data) return;
   try {
-    await notifyIssuance(discordWebhook.value(),event.data.data());
+    await notifyIssuance(discordWebhook.value(),event.data.data(),event.params.issuanceId);
   } catch (error) {
     // Do not log the webhook URL or the underlying network error.
     console.error('帳票の発行通知を送信できませんでした。',{eventId:event.id});

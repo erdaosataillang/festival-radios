@@ -68,6 +68,13 @@ function createHandler({auth,db,Timestamp,webauthn,now=()=>Date.now()}){
     res.json({issuer:{...saved,updatedAt:saved.updatedAt.toMillis()}});return;
    }
    const invoiceMode=req.path.startsWith('/invoices/');
+   const issuedMatch = req.path.match(/^\/(invoices\/)?issued\/([A-Za-z0-9]{20})$/);
+   if (req.method === 'GET' && issuedMatch) {
+    const record = await records(user.uid, issuedMatch[1] ? 'invoices' : 'receipts').doc(issuedMatch[2]).get();
+    if (!record.exists) fail(404, 'この発行記録を閲覧できません。');
+    res.json({document:record.get('receipt')});
+    return;
+   }
    if(['/drafts','/invoices/drafts'].includes(req.path)&&req.method==='POST'){
     const registered=await registeredIssuer(user.uid),receipt=(invoiceMode?invoiceData.invoice:receiptData.receipt)(body.receipt,registered,body.issuerVersion),ref=records(user.uid,invoiceMode?'invoiceDrafts':'drafts').doc(hash(receipt.number+'\0'+receipt.permanent)),updatedAt=Timestamp.fromMillis(now());
     await db.runTransaction(async t=>{const issuer=await t.get(issuerRef(user.uid)),draft=await t.get(ref);if(!issuer.exists||issuer.get('version')!==registered.version)fail(409,'発行者情報が更新されました。再読み込みしてください。');const data={uid:user.uid,receipt,updatedAt};if(draft.exists)t.update(ref,data);else t.create(ref,data);});
@@ -109,7 +116,7 @@ function createHandler({auth,db,Timestamp,webauthn,now=()=>Date.now()}){
     let verification;try{verification=await webauthn.verifyAuthenticationResponse({response:body.response,expectedChallenge:s.get('challenge'),expectedOrigin:APP,expectedRPID:RP,requireUserVerification:true,credential:{id:key.get('credentialId'),publicKey:new Uint8Array(Buffer.from(key.get('publicKey'),'base64')),counter:key.get('counter'),transports:key.get('transports')}});}catch{fail(401,'パスキーの本人確認に失敗しました。');}
     if(!verification.verified||!verification.authenticationInfo?.userVerified)fail(401,'本人確認が必要です。');
     const issuance=db.collection('receiptIssuances').doc(),record=records(user.uid,invoiceMode?'invoices':'receipts').doc(issuance.id),documentType=invoiceMode?'invoice':'receipt';
-    await db.runTransaction(async t=>{const fresh=await t.get(ref),freshKey=await t.get(keyRef),registered=await t.get(issuerRef(user.uid));checkChallenge(fresh,user,kind);if(!equal(fresh.get('pdfHash'),body.pdfHash)||!freshKey.exists||freshKey.get('counter')!==key.get('counter'))fail(409,'認証をやり直してください。');if(!fresh.get('receipt')||!registered.exists||registered.get('version')!==fresh.get('receipt').issuerVersion)fail(409,'発行者情報が更新されました。発行をやり直してください。');const issuedAt=Timestamp.fromMillis(now());t.update(keyRef,{counter:verification.authenticationInfo.newCounter,lastUsedAt:issuedAt});t.create(issuance,{uid:user.uid,documentType,pdfHash:body.pdfHash,credential:hash(body.response.id),issuedAt});t.create(record,{uid:user.uid,documentType,actorName:user.name,receipt:fresh.get('receipt'),pdfHash:body.pdfHash,issuedAt});t.delete(ref);});
+    await db.runTransaction(async t=>{const fresh=await t.get(ref),freshKey=await t.get(keyRef),registered=await t.get(issuerRef(user.uid));checkChallenge(fresh,user,kind);if(!equal(fresh.get('pdfHash'),body.pdfHash)||!freshKey.exists||freshKey.get('counter')!==key.get('counter'))fail(409,'認証をやり直してください。');if(!fresh.get('receipt')||!registered.exists||registered.get('version')!==fresh.get('receipt').issuerVersion)fail(409,'発行者情報が更新されました。発行をやり直してください。');const issuedAt=Timestamp.fromMillis(now());t.update(keyRef,{counter:verification.authenticationInfo.newCounter,lastUsedAt:issuedAt});t.create(issuance,{uid:user.uid,actorName:user.name,documentType,pdfHash:body.pdfHash,credential:hash(body.response.id),issuedAt});t.create(record,{uid:user.uid,documentType,actorName:user.name,receipt:fresh.get('receipt'),pdfHash:body.pdfHash,issuedAt});t.delete(ref);});
     res.json({ok:true,issuanceId:issuance.id,pdfHash:body.pdfHash});return;
    }
    fail(404,'操作が見つかりません。');
