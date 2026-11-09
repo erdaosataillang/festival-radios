@@ -57,3 +57,13 @@ const sealSample={sealName:'確認印',sealShape:'square',sealFont:'gothic'};
 test('印鑑を本人の設定に保存し両アプリで取得できる',async()=>{const s=setup();assert.equal((await s.call('/me')).body.seal,null);const r=await s.call('/seal',{seal:{...sealSample,uid:'user2'},version:null});assert.equal(r.code,200);assert.deepEqual(r.body.seal,{...sealSample,version:1,updatedAt:1000000});assert.deepEqual((await s.call('/me')).body.seal,r.body.seal);assert.deepEqual((await s.call('/seal')).body.seal,r.body.seal);assert(s.rows.has('receiptUsers/user1/settings/seal'));assert(!s.rows.has('receiptUsers/user2/settings/seal'));});
 test('別アカウントの印鑑と匿名アクセスを拒否する',async()=>{const s=setup();s.rows.set('receiptUsers/user2/settings/seal',{...sealSample,version:5});assert.equal((await s.call('/seal')).body.seal,null);assert.equal((await s.call('/seal',{seal:sealSample,version:5})).code,409);assert.equal(s.rows.get('receiptUsers/user2/settings/seal').version,5);const a=setup({claims:null});assert.equal((await a.call('/seal')).code,401);assert.equal((await a.call('/seal',{seal:sealSample,version:null})).code,401);assert.equal(a.writes,0)});
 test('印鑑の不正入力・更新競合を拒否し、過去の発行記録を保持する',async()=>{const s=setup();for(const seal of [{...sealSample,sealName:''},{...sealSample,sealName:'長すぎる印鑑の文字列'},{...sealSample,sealShape:'bad'},{...sealSample,sealFont:'bad'}])assert.equal((await s.call('/seal',{seal,version:null})).code,400);assert.equal(s.writes,0);await s.call('/seal',{seal:sealSample,version:null});assert.equal((await s.call('/seal',{seal:{...sealSample,sealName:'上書き'},version:null})).code,409);s.key();const r=await s.call('/issue/options',{pdfHash:'a'.repeat(64),receipt:{...sample,seal:'generated',...sealSample}});await s.call('/issue/verify',{challengeId:r.body.challengeId,pdfHash:'a'.repeat(64),response:{id:'key1'}});assert.equal((await s.call('/seal',{seal:{...sealSample,sealName:'変更後'},version:1})).code,200);assert.equal((await s.call('/history')).body.records[0].data.sealName,sealSample.sealName)});
+
+test('発行記録へのリンクは発行アカウントの帳票だけを返す', async () => {
+ const id = 'a'.repeat(20);
+ const own = setup();
+ own.rows.set('receiptUsers/user1/receipts/'+id, {receipt:sample});
+ own.rows.set('receiptUsers/user2/invoices/'+id, {receipt:{recipient:'別ユーザー'}});
+ assert.deepEqual((await own.call('/issued/'+id)).body, {document:sample});
+ assert.equal((await own.call('/invoices/issued/'+id)).code, 404);
+ assert.equal((await setup({claims:null}).call('/issued/'+id)).code, 401);
+});
