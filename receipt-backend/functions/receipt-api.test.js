@@ -47,7 +47,7 @@ test('発行成功時に記録と監査を同じトランザクションで保�
 test('発行者の変更後は古いPDF・古いプロフィールで発行できない',async()=>{const s=setup();s.key();const options=await s.call('/issue/options',{pdfHash:'a'.repeat(64)});await s.call('/issuer',{issuer:{name:'変更後'},version:1});assert.equal((await s.call('/issue/verify',{challengeId:options.body.challengeId,pdfHash:'a'.repeat(64),response:{id:'key1'}})).code,409);assert.equal((await s.call('/history')).body.records.length,0)});
 test('PDFに登録情報と違う発行者を差し込んだ要求を拒否',async()=>{const s=setup();s.key();assert.equal((await s.call('/issue/options',{pdfHash:'a'.repeat(64),receipt:{...sample,issuer:'別人'}})).code,409);assert.equal((await s.call('/issue/options',{pdfHash:'a'.repeat(64),receipt:null})).code,400)});
 const testBank={name:'テスト銀行',branch:'支店',type:'普通',number:'0000001',holder:'テスト'};
-const invoiceSample={...sample,subject:'作業費',dueDate:'2026-11-30',deliveryDate:'2026-10-31',taxRate:10,items:[{name:'作業費',quantity:'1',unitPrice:59091}],bank:testBank};
+const invoiceSample={...sample,number:'100',subject:'作業費',dueDate:'2026-11-30',deliveryDate:'2026-10-31',taxRate:10,items:[{name:'作業費',quantity:'1',unitPrice:59091}],bank:testBank};
 const invoiceIssuer={name:sample.issuer,address:sample.address,phone:sample.phone,version:1,bank:testBank};
 test('領収書から発行者を変更しても請求書の振込先を消さない',async()=>{const s=setup({issuerProfile:invoiceIssuer});await s.call('/issuer',{issuer:{name:'更新後'},version:1});assert.equal((await s.call('/me')).body.issuer.bank.number,'0000001')});
 test('請求書のログインコードを領収書の戻り先に転用できない',async()=>{const s=setup(),verifier='a'.repeat(48);const r=await s.call('/auth/code',{clientId:'invoice',redirectUri:APP+'/invoice/',codeChallenge:hash(verifier),codeChallengeMethod:'S256'},ACCOUNT);assert.equal(r.code,200);assert.equal((await s.call('/auth/exchange',{code:r.body.code,codeVerifier:verifier,redirectUri:APP+'/recipt/'})).code,401);assert.equal((await s.call('/auth/exchange',{code:r.body.code,codeVerifier:verifier,redirectUri:APP+'/invoice/'})).code,200)});
@@ -66,4 +66,29 @@ test('発行記録へのリンクは発行アカウントの帳票だけを返�
  assert.deepEqual((await own.call('/issued/'+id)).body, {document:sample});
  assert.equal((await own.call('/invoices/issued/'+id)).code, 404);
  assert.equal((await setup({claims:null}).call('/issued/'+id)).code, 401);
+});
+
+test('請求書番号は100から始まり、発行が成立したときだけ進む',async()=>{
+ const s=setup({issuerProfile:invoiceIssuer});s.key();
+ assert.deepEqual((await s.call('/invoices/next-number')).body,{number:'100'});
+ const body={receipt:invoiceSample,issuerVersion:1,pdfHash:'a'.repeat(64)};
+ assert.equal((await s.call('/invoices/issue/options',{...body,receipt:{...invoiceSample,number:'999'}})).code,409);
+ const a=await s.call('/invoices/issue/options',body);
+ const b=await s.call('/invoices/issue/options',body);
+ assert.deepEqual((await s.call('/invoices/next-number')).body,{number:'100'});
+ const verify=r=>s.call('/invoices/issue/verify',{challengeId:r.body.challengeId,pdfHash:body.pdfHash,response:{id:'key1'}});
+ assert.equal((await verify(a)).code,200);
+ assert.equal((await verify(b)).code,409);
+ assert.deepEqual((await s.call('/invoices/next-number')).body,{number:'101'});
+});
+
+test('登録済みの印鑑を引き継ぎ、別名の印鑑を追加できる',async()=>{
+ const s=setup();
+ await s.call('/seal',{seal:sealSample,version:null});
+ const r=await s.call('/seals',{name:'取引用',seal:{...sealSample,sealShape:'round'}});
+ assert.equal(r.code,200);
+ assert.deepEqual(r.body.seals.map(x=>x.name),[sealSample.sealName,'取引用']);
+ assert.deepEqual((await s.call('/me')).body.seal.seals,r.body.seals);
+ assert.equal((await s.call('/seals',{name:'取引用',seal:sealSample})).code,409);
+ assert.equal((await setup({claims:null}).call('/seals',{name:'取引用',seal:sealSample})).code,401);
 });

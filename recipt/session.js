@@ -1,3 +1,4 @@
+import { setupSealLibrary } from '../assets/seal-library.js';
 const API='https://asia-northeast1-urakata-app.cloudfunctions.net/receiptApi';
 const REDIRECT='https://app.urakatabu.com/recipt/';
 const AUTHORIZE='https://lmc-mobile.sorairosystem.com/receipt-authorize.html';
@@ -12,7 +13,7 @@ function showAuthStatus(message, pending = false, retry = false) {
  el('login-receipt').disabled = pending;
  el('retry-session').hidden = !retry;
 }
-function lock(message){profile=null;issuer=null;savedSeal=null;if(el('issuer-dialog')?.open)el('issuer-dialog').close();document.body.classList.remove('authenticated');showAuthStatus(message);}
+function lock(message){profile=null;issuer=null;savedSeal=null;if(el('issuer-dialog')?.open)el('issuer-dialog').close();document.body.classList.remove('authenticated');sealLibrary.clear();showAuthStatus(message);}
 async function api(path,body){
  const headers={'Content-Type':'application/json'};if(path!=='/auth/exchange'&&auth?.currentUser)headers.Authorization='Bearer '+await auth.currentUser.getIdToken();
  const controller = new AbortController();
@@ -50,22 +51,7 @@ function applyIssuer(){
  el('issuer-summary').textContent='登録済みの発行者情報を自動入力しています。';
  window.render();
 }
-function applySavedSeal(){
- if(!savedSeal)return;
- for(const key of ['sealName','sealShape','sealFont'])el(key).value=savedSeal[key];
- el('seal').value='generated';window.render();
-}
-async function saveAccountSeal(){
- const button=el('save-account-seal');button.disabled=true;el('seal-status').textContent='サーバーに保存中…';
- try{const seal=Object.fromEntries(['sealName','sealShape','sealFont'].map(key=>[key,el(key).value]));const result=await api('/seal',{seal,version:savedSeal?.version??null});savedSeal=result.seal;applySavedSeal();el('seal-status').textContent='印鑑をアカウントに保存しました。';}
- catch(error){el('seal-status').textContent=error.message;}finally{button.disabled=false;}
-}
-async function loadAccountSeal(){
- const button=el('load-account-seal');button.disabled=true;
- try{const result=await api('/seal');savedSeal=result.seal;if(savedSeal){applySavedSeal();el('seal-status').textContent='保存した印鑑を読み込みました。';}else el('seal-status').textContent='保存した印鑑はありません。';}
- catch(error){el('seal-status').textContent=error.message;}finally{button.disabled=false;}
-}
-el('save-account-seal').onclick=saveAccountSeal;el('load-account-seal').onclick=loadAccountSeal;
+const sealLibrary = setupSealLibrary(api);
 function editIssuer(){
  el('profileIssuerName').value=issuer?.name||profile?.name||'';
  el('profileIssuerAddress').value=issuer?.address||'';el('profileIssuerPhone').value=issuer?.phone||'';
@@ -156,7 +142,7 @@ async function start(){
   pendingLoginToken = undefined;
  }
  if(!auth.currentUser){lock('登録済みの裏方アカウントでログインしてください。');return;}
- const result=await api('/me');profile=result.profile;passkeys=result.passkeys;issuer=result.issuer;savedSeal=result.seal;applySavedSeal();describePasskeys();showAuthStatus('ログインしました。');document.body.classList.add('authenticated');
+ const result=await api('/me');profile=result.profile;passkeys=result.passkeys;issuer=result.issuer;savedSeal=result.seal;sealLibrary.load(savedSeal);describePasskeys();showAuthStatus('ログインしました。');document.body.classList.add('authenticated');
  const linkedDocument = issuedId();
  if (linkedDocument) {
   observeSession();
