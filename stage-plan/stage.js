@@ -245,12 +245,13 @@ function drawControls(){
  const multi=marked.size>1;
  el('float-group').hidden=!multi;
  el('float-group').disabled=layerSelection().some(locked);
- for(const id of ['float-edit','quick-lock','quick-duplicate','float-delete','quick-menu'])el(id).hidden=multi;
+ for(const id of ['float-edit','quick-lock','float-delete','quick-menu'])el(id).hidden=multi;
  const lock=el('quick-lock'),lockLabel=fixed?'ロック解除':'ロック';
  lock.setAttribute('aria-pressed',String(fixed));
  lock.setAttribute('aria-label',lockLabel);lock.title=lockLabel;
- for(const id of ['quick-properties','quick-position','quick-color','quick-opacity','quick-duplicate','quick-menu','float-edit','float-delete'])
+ for(const id of ['quick-properties','quick-position','quick-color','quick-opacity','quick-menu','float-edit','float-delete'])
   el(id).disabled=unavailable;
+ el('quick-duplicate').disabled=!layerSelection().length||layerSelection().some(locked);
  el('quick-replace').disabled=unavailable||isAnnotation(item)||isRigging(item);
  el('quick-flip').disabled=unavailable||isAnnotation(item)||isRigging(item);
  el('quick-flip').setAttribute('aria-pressed',String(!!item?.flipX));
@@ -735,7 +736,7 @@ document.addEventListener('keydown',event=>{
   event.preventDefault();savePlan(true);return;
  }
  if(event.target.closest?.('input, textarea, select, [contenteditable]'))return;
- if(command&&!event.altKey&&key==='d'&&selected()){
+ if(command&&!event.altKey&&key==='d'&&(selected()||marked.size)){
   event.preventDefault();duplicateSelected();return;
  }
  if(command&&!event.altKey&&(key==='z'||key==='y')){
@@ -1324,21 +1325,28 @@ el('ungroup-items').onclick=()=>{
 };
 
 function duplicateSelected(){
- const members=groupOf(selected());
- if(!members.length||locked(selected()))return;
+ const multiple=marked.size>1;
+ const members=[...new Set(layerSelection().flatMap(groupOf))];
+ if(!members.length||members.some(locked))return;
  if(items.length+members.length>200){status('図面に配置できる項目は200件までです。');return;}
  const offset=dimensions?20*geometry().scale:12;
  const dx=Math.min(offset,...members.map(item=>WORLD_LIMIT-item.x));
  const dy=Math.min(offset,...members.map(item=>WORLD_LIMIT-item.y));
- const groupId=members.length>1?crypto.randomUUID():undefined;
+ const groups=new Map();
  const copies=members.map(item=>{
   const copy={...item,id:crypto.randomUUID(),x:item.x+dx,y:item.y+dy};
-  if(groupId)copy.groupId=groupId;else delete copy.groupId;
+  if(item.groupId){
+   if(!groups.has(item.groupId))groups.set(item.groupId,crypto.randomUUID());
+   copy.groupId=groups.get(item.groupId);
+  }
   return copy;
  });
  const copy=copies[0];
- items.push(...copies);marked.clear();selectedId=copy.id;changed();draw();updateInspector();
- equipment.querySelector('[data-item="'+copy.id+'"]').focus({preventScroll:true});
+ items.push(...copies);marked.clear();
+ selectedId=multiple?null:copy.id;
+ if(multiple)for(const item of copies)marked.add(item.id);
+ changed();draw();updateInspector();
+ equipment.querySelector('[data-item="'+copy.id+'"]')?.focus({preventScroll:true});
 }
 
 const objectMenu=el('object-menu');
