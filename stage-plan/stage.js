@@ -1,5 +1,5 @@
 import {api,setupSession} from './session.js?v=diagram-share-1';
-import {diagramPdf} from './diagram-pdf.js?v=1';
+import {diagramPdf} from './diagram-pdf.js?v=2';
 import {equipmentShape} from './equipment-symbols.js?v=4';
 
 const stageTypes={

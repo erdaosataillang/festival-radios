@@ -39,8 +39,7 @@ export async function diagramPdf(diagram,{left,top,right,bottom},title){
 }
 
 function imagePdf(jpeg,width,height){
- const landscape=width>=height;
- const pageWidth=landscape?842:595,pageHeight=landscape?595:842;
+ const pageWidth=842,pageHeight=595;
  const ratio=Math.min((pageWidth-36)/width,(pageHeight-36)/height);
  const w=width*ratio,h=height*ratio;
  const stream=`q ${w.toFixed(3)} 0 0 ${h.toFixed(3)} ${((pageWidth-w)/2).toFixed(3)} ${((pageHeight-h)/2).toFixed(3)} cm /Diagram Do Q\n`;
