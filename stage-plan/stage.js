@@ -208,23 +208,43 @@ function poseItem(group,item){
   label.setAttribute('y',left.y-7);
  }else label.setAttribute('y',Math.max(20,height/2)+16);
 }
+let floatingFrame=0;
+function scheduleFloatingActions(){
+ if(floatingFrame)return;
+ floatingFrame=requestAnimationFrame(()=>{
+  floatingFrame=0;
+  const toolbar=el('floating-actions');
+  const node=selectedId&&equipment.querySelector('[data-item="'+selectedId+'"] .object-body');
+  if(!node||drag||diagram.querySelector('.diagram-text-editor')){toolbar.hidden=true;return;}
+  const object=node.getBoundingClientRect(),scroll=el('diagram-scroll').getBoundingClientRect();
+  if(object.right<=scroll.left||object.left>=scroll.right||object.bottom<=scroll.top||object.top>=scroll.bottom){
+   toolbar.hidden=true;return;
+  }
+  toolbar.hidden=false;
+  const frame=el('diagram-viewport').getBoundingClientRect();
+  const width=toolbar.offsetWidth,height=toolbar.offsetHeight;
+  const x=clamp((object.left+object.right-width)/2,scroll.left+6,Math.max(scroll.left+6,scroll.right-width-6));
+  const above=object.top-height-14;
+  const y=clamp(above>=scroll.top+4?above:object.bottom+14,scroll.top+4,Math.max(scroll.top+4,scroll.bottom-height-4));
+  toolbar.style.left=(x-frame.left)+'px';toolbar.style.top=(y-frame.top)+'px';
+ });
+}
 function drawControls(){
  objectControls.replaceChildren();
  const item=selected();
- el('object-actions').hidden=!item;
- el('canvas-hint').hidden=!!item;
+ scheduleFloatingActions();
  el('undo-edit').disabled=!undoStack.length;
  el('redo-edit').disabled=!redoStack.length;
- if(!item)return;
- const fixed=locked(item);
- const lock=el('quick-lock');
+ const fixed=locked(item),unavailable=!item||fixed;
+ const lock=el('quick-lock'),lockLabel=fixed?'ロック解除':'ロック';
  lock.setAttribute('aria-pressed',String(fixed));
- lock.textContent=fixed?'ロック解除':'ロック';
- for(const id of ['quick-properties','quick-position','quick-color','quick-opacity','quick-duplicate','quick-menu'])
-  el(id).disabled=fixed;
- el('quick-replace').disabled=fixed||isAnnotation(item)||isRigging(item);
- el('quick-flip').disabled=fixed||isAnnotation(item)||isRigging(item);
- el('quick-flip').setAttribute('aria-pressed',String(!!item.flipX));
+ lock.setAttribute('aria-label',lockLabel);lock.title=lockLabel;
+ for(const id of ['quick-properties','quick-position','quick-color','quick-opacity','quick-duplicate','quick-menu','float-edit','float-delete'])
+  el(id).disabled=unavailable;
+ el('quick-replace').disabled=unavailable||isAnnotation(item)||isRigging(item);
+ el('quick-flip').disabled=unavailable||isAnnotation(item)||isRigging(item);
+ el('quick-flip').setAttribute('aria-pressed',String(!!item?.flipX));
+ if(!item)return;
  el('quick-color').value=item.color??toolFor(item.assetId||item.kind).color??'#474747';
  el('quick-opacity').value=item.opacity??100;
  if(fixed)return;
@@ -429,13 +449,13 @@ function editText(item){
  });
  editor.addEventListener('blur',()=>{
   if(!box.isConnected)return;
-  box.remove();text.style.visibility='';
+  box.remove();text.style.visibility='';scheduleFloatingActions();
   const value=rigging?editor.value.replace(/\s*\n\s*/g,' ').trim():editor.value.trim()||'テキスト';
   if(value===item.name)return;
   item.name=value;changed();draw();updateInspector();
  },{once:true});
  text.style.visibility='hidden';
- box.append(editor);body.append(box);
+ box.append(editor);body.append(box);scheduleFloatingActions();
  editor.focus({preventScroll:true});editor.select();
 }
 
@@ -556,6 +576,15 @@ diagram.addEventListener('dblclick',event=>{
  if(isRigging(item))editText(item);
 });
 diagram.addEventListener('pointerup',event=>{
+ const label=event.target.closest('.rigging-name');
+ if(label&&!placing&&!drag){
+  const item=selected();
+  if(item?.id!==label.closest('[data-item]').dataset.item)return;
+  const previousTap=lastTextTap;
+  lastTextTap={item,time:event.timeStamp};
+  if(previousTap?.item===item&&event.timeStamp-previousTap.time<450)editText(item);
+  return;
+ }
  if(drag?.pointer!==event.pointerId||drag.grip||drag.item.kind!=='annotation-text')return;
  const {item,clientX,clientY}=drag;
  if(drag.undoRecorded||Math.hypot(event.clientX-clientX,event.clientY-clientY)>6){
@@ -567,7 +596,7 @@ diagram.addEventListener('pointerup',event=>{
  if(previousTap?.item===item&&event.timeStamp-previousTap.time<450)editText(item);
 });
 diagram.addEventListener('lostpointercapture',()=>{
- drag=null;updateInspector();scheduleSave();
+ drag=null;updateInspector();scheduleSave();scheduleFloatingActions();
 });
 diagram.addEventListener('keydown',event=>{
  const node=event.target.closest('[data-item]');
@@ -672,6 +701,8 @@ replaceDialog.addEventListener('close',()=>{
  });
 });
 el('quick-properties').onclick=editSelected;
+el('float-edit').onclick=editSelected;
+el('float-delete').onclick=()=>el('remove-item').click();
 el('quick-menu').onclick=()=>{
  const button=el('quick-menu'),box=button.getBoundingClientRect();
  showObjectMenu(box.left,box.bottom+4,button);
@@ -899,7 +930,7 @@ function scheduleViewportRulers(){
   }
  });
 }
-diagramScroll.addEventListener('scroll',scheduleViewportRulers,{passive:true});
+diagramScroll.addEventListener('scroll',()=>{scheduleViewportRulers();scheduleFloatingActions();},{passive:true});
 const rulerObserver=new ResizeObserver(scheduleViewportRulers);
 rulerObserver.observe(diagram);
 rulerObserver.observe(diagramScroll);
