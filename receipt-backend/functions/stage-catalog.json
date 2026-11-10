@@ -1,0 +1,436 @@
+[
+  {
+    "id": "speaker",
+    "label": "メインスピーカー",
+    "group": "speakers",
+    "symbol": "cabinet",
+    "mark": "PA"
+  },
+  {
+    "id": "monitor",
+    "label": "フロアモニター",
+    "group": "speakers",
+    "symbol": "wedge",
+    "mark": "MON"
+  },
+  {
+    "id": "sub",
+    "label": "サブウーファー",
+    "group": "speakers",
+    "symbol": "sub",
+    "mark": "SUB"
+  },
+  {
+    "id": "point-6",
+    "label": "ポイントソース 6インチ",
+    "group": "speakers",
+    "symbol": "cabinet",
+    "mark": "6"
+  },
+  {
+    "id": "point-8",
+    "label": "ポイントソース 8インチ",
+    "group": "speakers",
+    "symbol": "cabinet",
+    "mark": "8"
+  },
+  {
+    "id": "point-10",
+    "label": "ポイントソース 10インチ",
+    "group": "speakers",
+    "symbol": "cabinet",
+    "mark": "10"
+  },
+  {
+    "id": "point-12",
+    "label": "ポイントソース 12インチ",
+    "group": "speakers",
+    "symbol": "cabinet",
+    "mark": "12"
+  },
+  {
+    "id": "point-15",
+    "label": "ポイントソース 15インチ",
+    "group": "speakers",
+    "symbol": "cabinet",
+    "mark": "15"
+  },
+  {
+    "id": "array-小型",
+    "label": "小型ラインアレイ",
+    "group": "speakers",
+    "symbol": "array",
+    "mark": "S"
+  },
+  {
+    "id": "array-中型",
+    "label": "中型ラインアレイ",
+    "group": "speakers",
+    "symbol": "array",
+    "mark": "M"
+  },
+  {
+    "id": "array-大型",
+    "label": "大型ラインアレイ",
+    "group": "speakers",
+    "symbol": "array",
+    "mark": "L"
+  },
+  {
+    "id": "column",
+    "label": "コラムスピーカー",
+    "group": "speakers",
+    "symbol": "column",
+    "mark": "COL"
+  },
+  {
+    "id": "frontfill",
+    "label": "フロントフィル",
+    "group": "speakers",
+    "symbol": "fill",
+    "mark": "FF"
+  },
+  {
+    "id": "sidefill",
+    "label": "サイドフィル",
+    "group": "speakers",
+    "symbol": "cabinet",
+    "mark": "SF"
+  },
+  {
+    "id": "delay",
+    "label": "ディレイスピーカー",
+    "group": "speakers",
+    "symbol": "cabinet",
+    "mark": "DLY"
+  },
+  {
+    "id": "wedge-10",
+    "label": "ウェッジモニター 10インチ",
+    "group": "speakers",
+    "symbol": "wedge",
+    "mark": "10"
+  },
+  {
+    "id": "wedge-12",
+    "label": "ウェッジモニター 12インチ",
+    "group": "speakers",
+    "symbol": "wedge",
+    "mark": "12"
+  },
+  {
+    "id": "wedge-15",
+    "label": "ウェッジモニター 15インチ",
+    "group": "speakers",
+    "symbol": "wedge",
+    "mark": "15"
+  },
+  {
+    "id": "sub-18",
+    "label": "シングル18インチ サブ",
+    "group": "speakers",
+    "symbol": "sub",
+    "mark": "18"
+  },
+  {
+    "id": "sub-dual",
+    "label": "デュアル18インチ サブ",
+    "group": "speakers",
+    "symbol": "dual",
+    "mark": "2×18"
+  },
+  {
+    "id": "drums",
+    "label": "ドラムセット",
+    "group": "instruments",
+    "symbol": "drums",
+    "mark": ""
+  },
+  {
+    "id": "cajon",
+    "label": "カホン",
+    "group": "instruments",
+    "symbol": "box",
+    "mark": "CJ"
+  },
+  {
+    "id": "timpani",
+    "label": "ティンパニ",
+    "group": "instruments",
+    "symbol": "drum",
+    "mark": "T"
+  },
+  {
+    "id": "marimba",
+    "label": "マリンバ",
+    "group": "instruments",
+    "symbol": "mallet",
+    "mark": ""
+  },
+  {
+    "id": "percussion",
+    "label": "パーカッション台",
+    "group": "instruments",
+    "symbol": "table",
+    "mark": "Perc"
+  },
+  {
+    "id": "grand-piano",
+    "label": "グランドピアノ",
+    "group": "instruments",
+    "symbol": "grand",
+    "mark": ""
+  },
+  {
+    "id": "upright-piano",
+    "label": "アップライトピアノ",
+    "group": "instruments",
+    "symbol": "keys",
+    "mark": "UP"
+  },
+  {
+    "id": "keyboard",
+    "label": "キーボード",
+    "group": "instruments",
+    "symbol": "keys",
+    "mark": "KB"
+  },
+  {
+    "id": "synth",
+    "label": "シンセサイザー",
+    "group": "instruments",
+    "symbol": "keys",
+    "mark": "Syn"
+  },
+  {
+    "id": "electric-guitar",
+    "label": "エレキギター",
+    "group": "instruments",
+    "symbol": "guitar",
+    "mark": "EG"
+  },
+  {
+    "id": "acoustic-guitar",
+    "label": "アコースティックギター",
+    "group": "instruments",
+    "symbol": "guitar",
+    "mark": "AG"
+  },
+  {
+    "id": "bass-guitar",
+    "label": "エレキベース",
+    "group": "instruments",
+    "symbol": "guitar",
+    "mark": "EB"
+  },
+  {
+    "id": "contrabass",
+    "label": "コントラバス",
+    "group": "instruments",
+    "symbol": "strings",
+    "mark": "CB"
+  },
+  {
+    "id": "cello",
+    "label": "チェロ",
+    "group": "instruments",
+    "symbol": "strings",
+    "mark": "Vc"
+  },
+  {
+    "id": "violin",
+    "label": "バイオリン",
+    "group": "instruments",
+    "symbol": "strings",
+    "mark": "Vn"
+  },
+  {
+    "id": "sax",
+    "label": "サクソフォン",
+    "group": "instruments",
+    "symbol": "horn",
+    "mark": "Sax"
+  },
+  {
+    "id": "trumpet",
+    "label": "トランペット",
+    "group": "instruments",
+    "symbol": "horn",
+    "mark": "Tp"
+  },
+  {
+    "id": "trombone",
+    "label": "トロンボーン",
+    "group": "instruments",
+    "symbol": "horn",
+    "mark": "Tb"
+  },
+  {
+    "id": "mic",
+    "label": "マイク・スタンド",
+    "group": "audio",
+    "symbol": "mic",
+    "mark": ""
+  },
+  {
+    "id": "boom-mic",
+    "label": "ブームマイク",
+    "group": "audio",
+    "symbol": "boom",
+    "mark": ""
+  },
+  {
+    "id": "wireless-mic",
+    "label": "ワイヤレスマイク",
+    "group": "audio",
+    "symbol": "mic",
+    "mark": "WL"
+  },
+  {
+    "id": "di",
+    "label": "DIボックス",
+    "group": "audio",
+    "symbol": "box",
+    "mark": "DI"
+  },
+  {
+    "id": "foh",
+    "label": "音響卓",
+    "group": "audio",
+    "symbol": "console",
+    "mark": "FOH"
+  },
+  {
+    "id": "monitor-console",
+    "label": "モニター卓",
+    "group": "audio",
+    "symbol": "console",
+    "mark": "MON"
+  },
+  {
+    "id": "guitar-amp",
+    "label": "ギターアンプ",
+    "group": "audio",
+    "symbol": "amp",
+    "mark": "G"
+  },
+  {
+    "id": "bass-amp",
+    "label": "ベースアンプ",
+    "group": "audio",
+    "symbol": "amp",
+    "mark": "B"
+  },
+  {
+    "id": "stagebox",
+    "label": "ステージボックス",
+    "group": "audio",
+    "symbol": "box",
+    "mark": "I/O"
+  },
+  {
+    "id": "light",
+    "label": "照明",
+    "group": "lighting",
+    "symbol": "light",
+    "mark": ""
+  },
+  {
+    "id": "led-par",
+    "label": "LED PAR",
+    "group": "lighting",
+    "symbol": "light",
+    "mark": "PAR"
+  },
+  {
+    "id": "fresnel",
+    "label": "フレネル",
+    "group": "lighting",
+    "symbol": "light",
+    "mark": "FR"
+  },
+  {
+    "id": "profile-light",
+    "label": "プロファイル",
+    "group": "lighting",
+    "symbol": "light",
+    "mark": "EL"
+  },
+  {
+    "id": "moving-spot",
+    "label": "ムービング・スポット",
+    "group": "lighting",
+    "symbol": "moving",
+    "mark": "S"
+  },
+  {
+    "id": "moving-wash",
+    "label": "ムービング・ウォッシュ",
+    "group": "lighting",
+    "symbol": "moving",
+    "mark": "W"
+  },
+  {
+    "id": "followspot",
+    "label": "ピンスポット",
+    "group": "lighting",
+    "symbol": "light",
+    "mark": "FS"
+  },
+  {
+    "id": "lighting-console",
+    "label": "照明卓",
+    "group": "lighting",
+    "symbol": "console",
+    "mark": "LX"
+  },
+  {
+    "id": "truss",
+    "label": "トラス",
+    "group": "stage",
+    "symbol": "truss",
+    "mark": ""
+  },
+  {
+    "id": "riser",
+    "label": "平台・ライザー",
+    "group": "stage",
+    "symbol": "table",
+    "mark": "台"
+  },
+  {
+    "id": "chair",
+    "label": "椅子",
+    "group": "stage",
+    "symbol": "chair",
+    "mark": ""
+  },
+  {
+    "id": "music-stand",
+    "label": "譜面台",
+    "group": "stage",
+    "symbol": "stand",
+    "mark": ""
+  },
+  {
+    "id": "drum-riser",
+    "label": "ドラム台",
+    "group": "stage",
+    "symbol": "table",
+    "mark": "Dr"
+  },
+  {
+    "id": "dj-table",
+    "label": "DJテーブル",
+    "group": "stage",
+    "symbol": "table",
+    "mark": "DJ"
+  },
+  {
+    "id": "position",
+    "label": "立ち位置",
+    "group": "stage",
+    "symbol": "position",
+    "mark": ""
+  }
+]

@@ -83,3 +83,13 @@ h2 { font-size:16px; margin:0 0 12px; }
 .venue-presets { display:flex; gap:8px; flex-wrap:wrap; }
 .venue-curtain { stroke:#6f2757; stroke-width:5; stroke-dasharray:10 5; }
 .venue-curtain-label { fill:#6f2757; text-anchor:middle; font-size:16px; font-weight:700; paint-order:stroke; stroke:#fff; stroke-width:3px; }
+.equipment-library { display:grid; gap:6px; min-width:0; }
+.equipment-library label { font-size:12px; font-weight:600; }
+.equipment-library select { width:100%; min-height:42px; font:inherit; padding:6px 8px; }
+.equipment-library .hint { margin:0; }
+.equipment-library .palette { max-height:340px; overflow:auto; padding:2px; }
+.equipment-item .equipment-mark text { fill:white; font-size:10px; stroke:none; }
+@media(max-width:900px) {
+ .equipment-panel .equipment-library { grid-row:3; }
+ .equipment-library .palette { max-height:190px; }
+}

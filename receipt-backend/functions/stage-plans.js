@@ -1,6 +1,6 @@
 'use strict';
 const stageTypes=new Set(['hall','multipurpose','temporary']);
-const kinds=new Set(['speaker','monitor','sub','light','truss']);
+const kinds=new Set(require('./stage-catalog.json').map(tool=>tool.id));
 function validatePlan(value,fail){
  const title=typeof value?.title==='string'?value.title.trim():'';
  if(!title||title.length>100||!Array.isArray(value.items)||value.items.length>200)

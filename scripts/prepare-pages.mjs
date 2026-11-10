@@ -14,5 +14,6 @@ for(const app of apps){
 await rm(output,{recursive:true,force:true});await mkdir(output,{recursive:true});
 for(const name of ['index.html','apps.json','CNAME','assets'])await cp(join(root,name),join(output,name),{recursive:true});
 for(const app of apps)await cp(join(root,app.id),join(output,app.id),{recursive:true});
+await cp(join(root,'receipt-backend/functions/stage-catalog.json'),join(output,'stage-plan/catalog.json'));
 await writeFile(join(output,'.nojekyll'),'');
 console.log(`Prepared ${apps.length} apps: ${apps.map(app=>'/'+app.id+'/').join(', ')}`);

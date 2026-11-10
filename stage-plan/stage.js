@@ -1,4 +1,5 @@
 import {api,setupSession} from './session.js';
+import {equipmentShape} from './equipment-symbols.js';
 
 const stageTypes={
  hall:{label:'ホール',description:'舞台と客席の区画が分かれた会場',bounds:[155,82,690,335]},
@@ -21,13 +22,16 @@ function positionSvg(x,y,frame=geometry()){
  return {x:frame.x+x*frame.scale,y:frame.y+y*frame.scale};
 }
 
-const tools={
- speaker:{label:'メインスピーカー',color:'#255a88',shape:'<rect x="-16" y="-21" width="32" height="42" rx="4"/><circle cy="8" r="8" fill="white"/><circle cy="-10" r="4" fill="white"/><path d="M-7 23h14L0 32z"/>'},
- monitor:{label:'モニター',color:'#326f64',shape:'<path d="M-21 14l7-28h28l7 28z"/><path d="M-12 4h24" stroke="white" stroke-width="3"/><path d="M-6 17H6L0 25z"/>'},
- sub:{label:'サブウーファー',color:'#47456a',shape:'<rect x="-23" y="-18" width="46" height="36" rx="4"/><circle r="12" fill="white"/><circle r="6"/>'},
- light:{label:'照明',color:'#99610e',shape:'<rect x="-12" y="-20" width="24" height="25" rx="5"/><path d="M-8 8L-24 29h48L8 8z" opacity=".38"/><path d="M-9 5H9" stroke="white" stroke-width="3"/>'},
- truss:{label:'トラス',color:'#5b6472',shape:'<rect x="-42" y="-8" width="84" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="3"/><path d="M-42 8l14-16 14 16L0-8 14 8 28-8 42 8" fill="none" stroke="currentColor" stroke-width="2"/>'},
-};
+const quickTools=['speaker','monitor','sub','light','truss'];
+const colors={speakers:'#255a88',instruments:'#326f64',audio:'#47456a',lighting:'#99610e',stage:'#5b6472'};
+const tools=Object.create(null);
+async function loadCatalog(){
+ const response=await fetch(new URL('./catalog.json?v=1',import.meta.url));
+ if(!response.ok)throw new Error('機材一覧を読み込めませんでした。');
+ for(const {id,label,group,symbol,mark} of await response.json())
+  tools[id]={label,group,color:colors[group],shape:equipmentShape(symbol,mark)};
+ renderPalette();
+}
 const el=id=>document.getElementById(id);
 const diagram=el('diagram');
 const equipment=el('equipment');
@@ -135,17 +139,29 @@ function addItem(position){
  changed();draw();updateInspector();
 }
 
-for(const [kind,tool] of Object.entries(tools)){
- const button=document.createElement('button');
- button.type='button';
- button.dataset.kind=kind;
- button.setAttribute('aria-pressed','false');
- const icon=svg('svg',{viewBox:'-45 -40 90 80',fill:tool.color,color:tool.color,'aria-hidden':'true'});
- icon.innerHTML=tool.shape;
- button.append(icon,document.createTextNode(tool.label));
- button.onclick=()=>setPlacement(placing===kind?null:kind);
- el('palette').append(button);
+function renderPalette(){
+ const palette=el('palette'),category=el('equipment-category').value;
+ const query=el('equipment-search').value.trim().normalize('NFKC').toLowerCase();
+ const matches=Object.entries(tools).filter(([kind,tool])=>{
+  if(query)return (category==='quick'||category==='all'||tool.group===category)&&
+   (tool.label.normalize('NFKC').toLowerCase().includes(query)||kind.includes(query));
+  return category==='all'||(category==='quick'?quickTools.includes(kind):tool.group===category);
+ });
+ palette.replaceChildren();
+ el('equipment-count').textContent=matches.length+'件';
+ for(const [kind,tool] of matches){
+  const button=document.createElement('button');
+  button.type='button';button.dataset.kind=kind;
+  button.setAttribute('aria-pressed',String(kind===placing));
+  const icon=svg('svg',{viewBox:'-45 -40 90 80',fill:tool.color,color:tool.color,'aria-hidden':'true'});
+  icon.innerHTML=tool.shape;
+  button.append(icon,document.createTextNode(tool.label));
+  button.onclick=()=>setPlacement(placing===kind?null:kind);
+  palette.append(button);
+ }
 }
+el('equipment-category').onchange=renderPalette;
+el('equipment-search').oninput=renderPalette;
 
 diagram.addEventListener('pointerdown',event=>{
  if(event.button!==0)return;
@@ -209,7 +225,7 @@ document.addEventListener('keydown',event=>{
    event.preventDefault();el('remove-item').click();
   }
   if(/^[1-5]$/.test(key)){
-   event.preventDefault();setPlacement(Object.keys(tools)[Number(key)-1]);
+   event.preventDefault();setPlacement(quickTools[Number(key)-1]);
   }
  }
 });
@@ -442,4 +458,15 @@ el('open-list').onclick=async()=>{
 el('welcome-open').onclick=()=>el('open-list').click();
 el('close-list').onclick=()=>el('plan-picker').close();
 window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue='';}});
-setupSession(()=>{el('workspace').hidden=false;el('plan-welcome').hidden=false;typePicker.showModal();},()=>dirty);
+setupSession(async()=>{
+ el('workspace').hidden=false;
+ el('plan-welcome').hidden=false;
+ try{await loadCatalog();typePicker.showModal();}
+ catch(error){
+  const message=document.createElement('p');
+  message.setAttribute('role','alert');
+  message.textContent='機材一覧を読み込めませんでした。ページを再読み込みしてください。';
+  el('plan-welcome').append(message);
+  el('welcome-new').disabled=el('welcome-open').disabled=true;
+ }
+},()=>dirty);
