@@ -117,7 +117,7 @@ function setPlacement(kind){
  el('line-draft').replaceChildren();
  placing=kind;
  diagram.classList.toggle('placing',!!kind);
- for(const button of el('palette').querySelectorAll('button'))
+ for(const button of document.querySelectorAll('#palette button, #rigging-palette button'))
   button.setAttribute('aria-pressed',String(button.dataset.kind===kind));
  el('placement-help').textContent=kind==='annotation-line'?'図面上で線の始点をクリックまたはタップしてください。':kind?toolFor(kind).label+'を置く位置をクリックまたはタップしてください。':'機材を選び、図面をクリックまたはタップして配置します。';
 }
@@ -330,6 +330,7 @@ function renderPalette(){
  const palette=el('palette'),category=el('equipment-category').value;
  const query=el('equipment-search').value.trim().normalize('NFKC').toLowerCase();
  const matches=[...Object.entries(tools),...assets.filter(asset=>asset.id!==background).map(asset=>[asset.id,toolFor(asset.id)])].filter(([kind,tool])=>{
+  if(tool.group==='rigging')return false;
   const inCategory=category==='all'||tool.group===category||(category==='source'&&!!tool.source);
   if(query)return (category==='quick'||inCategory)&&
    (tool.label.normalize('NFKC').toLowerCase().includes(query)||kind.includes(query));
@@ -337,21 +338,25 @@ function renderPalette(){
  });
  palette.replaceChildren();
  el('equipment-count').textContent=matches.length+'件';
- for(const [kind,tool] of matches){
-  const button=document.createElement('button');
-  button.type='button';button.dataset.kind=kind;
-  button.setAttribute('aria-pressed',String(kind===placing));
-  const icon=svg('svg',{viewBox:'-45 -40 90 80',fill:tool.color,color:tool.color,'aria-hidden':'true'});
-  if(tool.asset)icon.append(svg('image',{href:tool.asset.data,x:-36,y:-36,width:72,height:72}));
-  else if(tool.source)icon.append(svg('rect',{x:-24,y:-24,width:48,height:48,fill:'none',stroke:'currentColor','stroke-width':5}));
-  else icon.innerHTML=tool.shape;
-  const name=document.createElement('span'),handle=document.createElement('span');
-  name.textContent=tool.label;
-  handle.className='palette-grip';handle.textContent='⠿';handle.setAttribute('aria-hidden','true');
-  button.append(icon,name,handle);
-  bindPaletteDrag(button,handle,kind,tool.label);
-  palette.append(button);
- }
+ palette.append(...matches.map(([kind,tool])=>paletteButton(kind,tool)));
+ el('rigging-palette').replaceChildren(...Object.entries(tools)
+  .filter(([,tool])=>tool.group==='rigging')
+  .map(([kind,tool])=>paletteButton(kind,tool)));
+}
+function paletteButton(kind,tool){
+ const button=document.createElement('button');
+ button.type='button';button.dataset.kind=kind;
+ button.setAttribute('aria-pressed',String(kind===placing));
+ const icon=svg('svg',{viewBox:'-45 -40 90 80',fill:tool.color,color:tool.color,'aria-hidden':'true'});
+ if(tool.asset)icon.append(svg('image',{href:tool.asset.data,x:-36,y:-36,width:72,height:72}));
+ else if(tool.source)icon.append(svg('rect',{x:-24,y:-24,width:48,height:48,fill:'none',stroke:'currentColor','stroke-width':5}));
+ else icon.innerHTML=tool.shape;
+ const name=document.createElement('span'),handle=document.createElement('span');
+ name.textContent=tool.label;
+ handle.className='palette-grip';handle.textContent='⠿';handle.setAttribute('aria-hidden','true');
+ button.append(icon,name,handle);
+ bindPaletteDrag(button,handle,kind,tool.label);
+ return button;
 }
 el('equipment-category').onchange=renderPalette;
 el('equipment-search').oninput=renderPalette;
