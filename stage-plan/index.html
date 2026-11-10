@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="../assets/official-theme.css?v=1">
 <link rel="stylesheet" href="../assets/astryx-ui.css?v=2">
 <link rel="stylesheet" href="stage.css?v=object-names-1">
-<script type="module" src="stage.js?v=trackpad-zoom-1"></script>
+<script type="module" src="stage.js?v=open-template-only-1"></script>
 </head>
 <body>
 <header><span class="header-title">ステージ図面</span><a class="header-brand app-home" href="https://app.urakatabu.com/">アプリ一覧</a><urakata-account></urakata-account></header>
@@ -42,7 +42,6 @@
   <button type="button" data-panel="venue" aria-pressed="false"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 20V4h18v16H3Zm3-6h12M8 4v10m8-10v10"/></svg>会場</button>
   <button type="button" data-panel="properties" aria-pressed="false"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2" fill="white"/><circle cx="16" cy="12" r="2" fill="white"/><circle cx="8" cy="18" r="2" fill="white"/></svg>配置設定</button>
   <button type="button" data-panel="layers" aria-pressed="false">レイヤー</button>
-  <button type="button" id="rail-upload"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4m-5 5 5-5 5 5M4 16v4h16v-4"/></svg>読み込み</button>
   <button type="button" id="rail-plans"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>保存図面</button>
  </nav>
  <aside class="panel equipment-panel">
@@ -53,12 +52,10 @@
 <section data-tool-panel="materials"><h2>オブジェクト</h2>
   <div class="equipment-library">
    <label for="equipment-category">カテゴリ</label>
-   <select id="equipment-category"><option value="quick">よく使う機材</option><option value="speakers">スピーカー</option><option value="instruments">楽器</option><option value="audio">音響機器</option><option value="lighting">照明</option><option value="stage">舞台備品</option><option value="imported">読み込んだオブジェクト</option><option value="all">すべて</option></select>
+   <select id="equipment-category"><option value="source">すべて</option></select>
    <label for="equipment-search">機材検索</label><input id="equipment-search" type="search" placeholder="機材名で検索">
    <p id="equipment-count" class="hint" role="status"></p>
    <div id="palette" class="palette"></div>
-   <button id="import-symbol" type="button">オブジェクトを読み込む（SVG）</button>
-   <input id="svg-symbol-file" type="file" accept=".svg,image/svg+xml" hidden>
    <a href="https://template.kiwisoundworks.com/download.html" target="_blank" rel="noopener">配布元のSVGをダウンロード ↗</a>
   </div>
   </section>

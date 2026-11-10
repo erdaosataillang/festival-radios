@@ -22,7 +22,6 @@ function positionSvg(x,y,frame=geometry()){
  return {x:frame.x+x*frame.scale,y:frame.y+y*frame.scale};
 }
 
-const quickTools=['speaker','monitor','sub','light','truss'];
 const colors={speakers:'#255a88',instruments:'#326f64',audio:'#47456a',lighting:'#99610e',rigging:'#6b4384',stage:'#5b6472'};
 const tools=Object.create(null);
 const sourceImages=new Map();
@@ -49,7 +48,6 @@ async function loadCatalog(){
   tools[id]={label,group,color:colors[group],shape:equipmentShape(symbol,mark)};
  const {symbols}=await api('/stage/source-catalog');
  const categories=document.createElement('optgroup');categories.label='舞台仕込み図オープンテンプレート';
- categories.append(new Option('配布オブジェクト：すべて','source'));
  for(const category of new Set(symbols.map(item=>item.category)))categories.append(new Option(category,'source:'+category));
  el('equipment-category').append(categories);
  for(const {id,label,category,ratio,size} of symbols)
@@ -332,13 +330,9 @@ function bindPaletteDrag(button,handle,kind,label){
 function renderPalette(){
  const palette=el('palette'),category=el('equipment-category').value;
  const query=el('equipment-search').value.trim().normalize('NFKC').toLowerCase();
- const matches=[...Object.entries(tools),...assets.filter(asset=>asset.id!==background).map(asset=>[asset.id,toolFor(asset.id)])].filter(([kind,tool])=>{
-  if(tool.group==='rigging')return false;
-  const inCategory=category==='all'||tool.group===category||(category==='source'&&!!tool.source);
-  if(query)return (category==='quick'||inCategory)&&
-   (tool.label.normalize('NFKC').toLowerCase().includes(query)||kind.includes(query));
-  return inCategory||(category==='quick'&&quickTools.includes(kind));
- });
+ const matches=Object.entries(tools).filter(([kind,tool])=>
+  tool.source&&(category==='source'||tool.group===category)&&
+  (tool.label.normalize('NFKC').toLowerCase().includes(query)||kind.includes(query)));
  palette.replaceChildren();
  el('equipment-count').textContent=matches.length+'件';
  palette.append(...matches.map(([kind,tool])=>paletteButton(kind,tool)));
@@ -562,9 +556,7 @@ document.addEventListener('keydown',event=>{
   if((key==='delete'||key==='backspace')&&selected()){
    event.preventDefault();el('remove-item').click();
   }
-  if(/^[1-5]$/.test(key)){
-   event.preventDefault();setPlacement(quickTools[Number(key)-1]);
-  }
+
  }
 });
 el('undo-edit').onclick=()=>restoreChange(undoStack,redoStack);
@@ -718,29 +710,22 @@ async function importSvg(file){
  });
  return {id:crypto.randomUUID(),name:file.name.replace(/\.svg$/i,'').slice(0,80)||'読み込んだオブジェクト',ratio,data};
 }
-for(const [buttonId,inputId,isBackground] of [['import-symbol','svg-symbol-file',false],['import-background','svg-background-file',true]]){
- const input=el(inputId);
- el(buttonId).onclick=()=>input.click();
- input.onchange=async()=>{
-  const file=input.files[0];input.value='';
-  if(!file)return;
-  const epoch=planEpoch;
-  try{
-   const asset=await importSvg(file);
-   if(epoch!==planEpoch)return;
-   const kept=isBackground?assets.filter(entry=>entry.id!==background||items.some(item=>item.assetId===entry.id)):assets;
-   if(kept.length>=60||kept.reduce((size,item)=>size+item.data.length,asset.data.length)>650000)
-    throw new Error('図面に保存できるSVGの容量を超えました。');
-   assets=[...kept,asset];
-   if(isBackground){background=asset.id;drawStage();}
-   else{
-    el('equipment-category').value='imported';el('equipment-search').value='';
-    setPlacement(asset.id);
-   }
-   renderPalette();changed();
-  }catch(error){status(error.message||'SVGを読み込めませんでした。');}
- };
-}
+const backgroundFile=el('svg-background-file');
+el('import-background').onclick=()=>backgroundFile.click();
+backgroundFile.onchange=async()=>{
+ const file=backgroundFile.files[0];backgroundFile.value='';
+ if(!file)return;
+ const epoch=planEpoch;
+ try{
+  const asset=await importSvg(file);
+  if(epoch!==planEpoch)return;
+  const kept=assets.filter(entry=>entry.id!==background||items.some(item=>item.assetId===entry.id));
+  if(kept.length>=60||kept.reduce((size,item)=>size+item.data.length,asset.data.length)>650000)
+   throw new Error('図面に保存できるSVGの容量を超えました。');
+  assets=[...kept,asset];background=asset.id;
+  drawStage();changed();
+ }catch(error){status(error.message||'SVGを読み込めませんでした。');}
+};
 el('remove-background').onclick=()=>{
  const old=background;
  background=null;
@@ -1083,7 +1068,6 @@ function showToolPanel(panel){
 for(const button of document.querySelectorAll('.tool-rail [data-panel]')){
  button.onclick=()=>showToolPanel(activeToolPanel===button.dataset.panel?null:button.dataset.panel);
 }
-el('rail-upload').onclick=()=>{showToolPanel('materials');el('import-symbol').click();};
 el('rail-plans').onclick=()=>el('open-list').click();
 for(const [id,kind] of [['add-text','annotation-text'],['add-line','annotation-line']]){
  const button=el(id);
