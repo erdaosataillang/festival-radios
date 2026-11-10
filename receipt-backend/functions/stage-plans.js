@@ -3,6 +3,7 @@ const {readFile}=require('node:fs/promises');
 const {join}=require('node:path');
 const sourceCatalog=require('./kiwi-catalog.json');
 const sourceKinds=new Set(sourceCatalog.map(item=>item.id));
+const WORLD_LIMIT=1000000;
 const uuid=/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 const stageTypes=new Set(['hall','multipurpose','temporary']);
 const kinds=new Set([...require('./stage-catalog.json').map(tool=>tool.id),...sourceKinds,'annotation-line','annotation-text']);
@@ -36,8 +37,8 @@ function validatePlan(value,fail){
  const seen=new Set();
  const items=value.items.map(item=>{
   if(!item||!(kinds.has(item.kind)||(item.kind==='imported-svg'&&assetIds.has(item.assetId)))||typeof item.id!=='string'||!/^[a-f0-9-]{36}$/.test(item.id)||seen.has(item.id)||
-     typeof item.name!=='string'||item.name.length>80||!Number.isFinite(item.x)||item.x<0||item.x>1000||
-     !Number.isFinite(item.y)||item.y<0||item.y>650||!Number.isInteger(item.angle)||item.angle<0||item.angle>=360||
+     typeof item.name!=='string'||item.name.length>80||!Number.isFinite(item.x)||Math.abs(item.x)>WORLD_LIMIT||
+     !Number.isFinite(item.y)||Math.abs(item.y)>WORLD_LIMIT||!Number.isInteger(item.angle)||item.angle<0||item.angle>=360||
      !Number.isFinite(item.height)||item.height<0||item.height>30)fail(400,'機材の設定を確認してください。');
   if(item.source!==undefined&&!['venue','bring'].includes(item.source))fail(400,'機材の区分を確認してください。');
   if(item.quantity!==undefined&&(!Number.isInteger(item.quantity)||item.quantity<1||item.quantity>999))fail(400,'機材表の数量を確認してください。');

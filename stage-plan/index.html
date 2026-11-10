@@ -10,8 +10,8 @@
 <link rel="stylesheet" href="../assets/auth-gate.css?v=1">
 <link rel="stylesheet" href="../assets/official-theme.css?v=1">
 <link rel="stylesheet" href="../assets/astryx-ui.css?v=2">
-<link rel="stylesheet" href="stage.css?v=floating-actions-1">
-<script type="module" src="stage.js?v=floating-actions-1"></script>
+<link rel="stylesheet" href="stage.css?v=expand-canvas-1">
+<script type="module" src="stage.js?v=expand-canvas-1"></script>
 </head>
 <body>
 <header><span class="header-title">ステージ図面</span><a class="header-brand app-home" href="https://app.urakatabu.com/">アプリ一覧</a><urakata-account></urakata-account></header>
@@ -110,7 +110,7 @@
   <svg id="meter-ruler" class="viewport-ruler" aria-label="メートル目盛り"></svg>
   <div id="diagram-scroll"><svg id="diagram" viewBox="0 0 1000 650" aria-label="ステージ機材配置図">
    <defs><pattern id="stage-grid" width="25" height="25" patternUnits="userSpaceOnUse"><path d="M25 0H0V25" fill="none" stroke="#d9dfe7" stroke-width="1"/></pattern></defs>
-   <rect width="1000" height="650" fill="#f8fafc"/>
+   <rect id="canvas-paper" width="1000" height="650" fill="#f8fafc"/>
    <image id="diagram-background" x="0" y="0" width="1000" height="650" preserveAspectRatio="xMidYMid meet" hidden/><rect id="grid" width="1000" height="650" fill="url(#stage-grid)"/>
    <polygon id="stage-outline" class="stage-area" hidden/><rect id="stage-boundary" x="155" y="82" width="690" height="335" class="stage-area"/>
    <text id="stage-rear" x="500" y="119" class="diagram-label">ステージ奥</text>

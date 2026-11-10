@@ -303,13 +303,14 @@ function draw(){
   body.append(symbol);group.append(body,label);equipment.append(group);
   poseItem(group,item);
  }
+ expandForItems();
  drawControls();
  renderSchedule();
 }
 
 function point(event,limit=true){
  const pos=new DOMPoint(event.clientX,event.clientY).matrixTransform(diagram.getScreenCTM().inverse());
- return limit?{x:Math.round(clamp(pos.x,0,1000)),y:Math.round(clamp(pos.y,0,650))}:{x:pos.x,y:pos.y};
+ return limit?{x:Math.round(worldCoordinate(pos.x)),y:Math.round(worldCoordinate(pos.y))}:{x:pos.x,y:pos.y};
 }
 function rotateVector(x,y,angle){
  const r=angle*Math.PI/180;
@@ -320,7 +321,7 @@ function snapPosition(pos){
  if(!dimensions)return pos;
  const frame=geometry(),cm=positionCm(pos,frame);
  const snapped=positionSvg(cm.x,cm.y,frame);
- return {x:clamp(snapped.x,0,1000),y:clamp(snapped.y,0,650)};
+ return {x:worldCoordinate(snapped.x),y:worldCoordinate(snapped.y)};
 }
 function addItem(position){
  if(items.length>=200){status('1つの図面に配置できる機材は200件までです。');return;}
@@ -471,7 +472,7 @@ function lineEnd(event,start){
  if(!event.shiftKey)return end;
  const dx=end.x-start.x,dy=end.y-start.y;
  const angle=Math.round(Math.atan2(dy,dx)/(Math.PI/4))*(Math.PI/4),length=Math.hypot(dx,dy);
- return {x:clamp(start.x+length*Math.cos(angle),0,1000),y:clamp(start.y+length*Math.sin(angle),0,650)};
+ return {x:worldCoordinate(start.x+length*Math.cos(angle)),y:worldCoordinate(start.y+length*Math.sin(angle))};
 }
 
 diagram.addEventListener('pointerdown',event=>{
@@ -554,11 +555,11 @@ diagram.addEventListener('pointermove',event=>{
   const size=clamp(Math.round(drag.width*factor/unit),1,20000);
   const ratio=size*unit/drag.width;
   const x=anchor.x+vector.x*ratio/2,y=anchor.y+vector.y*ratio/2;
-  if(x>=0&&x<=1000&&y>=0&&y<=650)Object.assign(item,{size,x,y});
+  if(inWorld({x,y}))Object.assign(item,{size,x,y});
  }else{
   const target=snapPosition({x:drag.x+end.x-drag.start.x,y:drag.y+end.y-drag.start.y});
-  const dx=clamp(target.x-drag.x,Math.max(...drag.members.map(m=>-m.x)),Math.min(...drag.members.map(m=>1000-m.x)));
-  const dy=clamp(target.y-drag.y,Math.max(...drag.members.map(m=>-m.y)),Math.min(...drag.members.map(m=>650-m.y)));
+  const dx=clamp(target.x-drag.x,Math.max(...drag.members.map(m=>-WORLD_LIMIT-m.x)),Math.min(...drag.members.map(m=>WORLD_LIMIT-m.x)));
+  const dy=clamp(target.y-drag.y,Math.max(...drag.members.map(m=>-WORLD_LIMIT-m.y)),Math.min(...drag.members.map(m=>WORLD_LIMIT-m.y)));
   for(const {entry,x,y} of drag.members){
    Object.assign(entry,{x:x+dx,y:y+dy});
    const node=equipment.querySelector('[data-item="'+entry.id+'"]');
@@ -567,6 +568,7 @@ diagram.addEventListener('pointermove',event=>{
  }
  if(before===[item.x,item.y,item.angle,item.size].join(','))return;
  poseItem(equipment.querySelector('[data-item="'+item.id+'"]'),item);
+ expandForItems();
  drawControls();
  changed();
 });
@@ -611,8 +613,8 @@ diagram.addEventListener('keydown',event=>{
  if(direction&&!locked(item)){
   const step=dimensions?(event.shiftKey?10:1)*geometry().scale:(event.shiftKey?25:5);
   const members=groupOf(item);
-  const dx=clamp(step*direction[0],Math.max(...members.map(entry=>-entry.x)),Math.min(...members.map(entry=>1000-entry.x)));
-  const dy=clamp(step*direction[1],Math.max(...members.map(entry=>-entry.y)),Math.min(...members.map(entry=>650-entry.y)));
+  const dx=clamp(step*direction[0],Math.max(...members.map(entry=>-WORLD_LIMIT-entry.x)),Math.min(...members.map(entry=>WORLD_LIMIT-entry.x)));
+  const dy=clamp(step*direction[1],Math.max(...members.map(entry=>-WORLD_LIMIT-entry.y)),Math.min(...members.map(entry=>WORLD_LIMIT-entry.y)));
   for(const entry of members){entry.x+=dx;entry.y+=dy;}
   changed();
  }
@@ -708,7 +710,7 @@ el('quick-menu').onclick=()=>{
  showObjectMenu(box.left,box.bottom+4,button);
 };
 diagram.addEventListener('dblclick',event=>{
- if(!placing&&event.target.closest('[data-item]'))editSelected();
+ if(!placing&&event.target.closest('[data-item]')&&!event.target.closest('.rigging-name'))editSelected();
 });
 let spaceDown=false,pan=null;
 const editableTarget=target=>target.closest?.('input,textarea,select,button,[contenteditable]');
@@ -730,11 +732,90 @@ diagramScroll.addEventListener('pointerdown',event=>{
 },true);
 diagramScroll.addEventListener('pointermove',event=>{
  if(pan?.id!==event.pointerId)return;
+ extendAtEdge(pan.left+pan.x-event.clientX-diagramScroll.scrollLeft,pan.top+pan.y-event.clientY-diagramScroll.scrollTop);
  diagramScroll.scrollLeft=pan.left+pan.x-event.clientX;
  diagramScroll.scrollTop=pan.top+pan.y-event.clientY;
 });
 diagramScroll.addEventListener('lostpointercapture',()=>{
  pan=null;diagramScroll.classList.remove('panning');
+});
+const WORLD_LIMIT=1000000,CANVAS_CHUNK=500;
+const defaultCanvas={left:0,top:0,right:1000,bottom:650};
+let canvasBounds=defaultCanvas;
+const worldCoordinate=value=>clamp(value,-WORLD_LIMIT,WORLD_LIMIT);
+const inWorld=({x,y})=>Math.abs(x)<=WORLD_LIMIT&&Math.abs(y)<=WORLD_LIMIT;
+function canvasWidth(){return canvasBounds.right-canvasBounds.left;}
+function canvasHeight(){return canvasBounds.bottom-canvasBounds.top;}
+function sizeCanvas(){
+ diagram.style.setProperty('--diagram-zoom',zoom*canvasWidth()/1000+'%');
+}
+function updateCanvas(bounds,preserve=true){
+ const scale=diagram.getBoundingClientRect().width/canvasWidth();
+ const dx=(canvasBounds.left-bounds.left)*scale,dy=(canvasBounds.top-bounds.top)*scale;
+ canvasBounds=bounds;
+ const attrs={x:bounds.left,y:bounds.top,width:canvasWidth(),height:canvasHeight()};
+ diagram.setAttribute('viewBox',Object.values(attrs).join(' '));
+ for(const id of ['canvas-paper','grid'])
+  for(const [key,value] of Object.entries(attrs))el(id).setAttribute(key,value);
+ sizeCanvas();
+ if(preserve){
+  diagramScroll.scrollLeft+=dx;diagramScroll.scrollTop+=dy;
+  if(pan){pan.left+=dx;pan.top+=dy;}
+ }
+ scheduleViewportRulers();scheduleFloatingActions();
+}
+function contentBounds(base){
+ const bounds={...base};
+ for(const item of items){
+  if(!visible(item))continue;
+  const {width,height}=symbolDimensions(item);
+  const radius=Math.hypot(width,height)/2+45;
+  bounds.left=Math.min(bounds.left,item.x-radius);
+  bounds.top=Math.min(bounds.top,item.y-radius);
+  bounds.right=Math.max(bounds.right,item.x+radius);
+  bounds.bottom=Math.max(bounds.bottom,item.y+radius);
+ }
+ return bounds;
+}
+function expandForItems(){
+ const needed=contentBounds(canvasBounds),bounds={...canvasBounds};
+ for(const key of ['left','top','right','bottom']){
+  const delta=needed[key]-bounds[key];
+  if(delta)bounds[key]+=Math.sign(delta)*Math.ceil(Math.abs(delta)/CANVAS_CHUNK)*CANVAS_CHUNK;
+ }
+ if(Object.keys(bounds).some(key=>bounds[key]!==canvasBounds[key]))updateCanvas(bounds);
+}
+function extendAtEdge(dx,dy){
+ const bounds={...canvasBounds},edge=36;
+ const {scrollLeft,scrollTop,clientWidth,clientHeight,scrollWidth,scrollHeight}=diagramScroll;
+ if(dx<0&&scrollLeft<edge)bounds.left=Math.max(Math.min(bounds.left,-WORLD_LIMIT-CANVAS_CHUNK),bounds.left-CANVAS_CHUNK);
+ if(dx>0&&scrollWidth-clientWidth-scrollLeft<edge)bounds.right=Math.min(Math.max(bounds.right,WORLD_LIMIT+CANVAS_CHUNK),bounds.right+CANVAS_CHUNK);
+ if(dy<0&&scrollTop<edge)bounds.top=Math.max(Math.min(bounds.top,-WORLD_LIMIT-CANVAS_CHUNK),bounds.top-CANVAS_CHUNK);
+ if(dy>0&&scrollHeight-clientHeight-scrollTop<edge)bounds.bottom=Math.min(Math.max(bounds.bottom,WORLD_LIMIT+CANVAS_CHUNK),bounds.bottom+CANVAS_CHUNK);
+ if(Object.keys(bounds).some(key=>bounds[key]!==canvasBounds[key]))updateCanvas(bounds);
+}
+let touchPan=null;
+diagramScroll.addEventListener('touchstart',event=>{
+ touchPan=event.touches.length===1?event.touches[0]:null;
+},{passive:true});
+diagramScroll.addEventListener('touchmove',event=>{
+ if(event.touches.length!==1){touchPan=null;return;}
+ const touch=event.touches[0];
+ if(touchPan&&!drag&&!placing)extendAtEdge(touchPan.clientX-touch.clientX,touchPan.clientY-touch.clientY);
+ touchPan=touch;
+},{passive:true});
+for(const type of ['touchend','touchcancel'])
+ diagramScroll.addEventListener(type,()=>{touchPan=null;},{passive:true});
+let printBounds=null;
+window.addEventListener('beforeprint',()=>{
+ if(printBounds)return;
+ printBounds={bounds:canvasBounds,left:diagramScroll.scrollLeft,top:diagramScroll.scrollTop};
+ updateCanvas(contentBounds(defaultCanvas),false);
+});
+window.addEventListener('afterprint',()=>{
+ if(!printBounds)return;
+ const {bounds,left,top}=printBounds;printBounds=null;
+ updateCanvas(bounds,false);diagramScroll.scrollTo(left,top);
 });
 let zoom=100;
 function setZoom(value,anchor){
@@ -745,7 +826,7 @@ function setZoom(value,anchor){
  const y=anchor?.clientY??viewport.top+diagramScroll.clientHeight/2;
  const before=diagram.getBoundingClientRect();
  zoom=next;
- diagram.style.setProperty('--diagram-zoom',zoom+'%');
+ sizeCanvas();
  el('zoom-reset').textContent=Math.round(zoom)+'%';
  el('zoom-out').disabled=zoom<=50;
  el('zoom-in').disabled=zoom>=400;
@@ -758,7 +839,7 @@ function setZoom(value,anchor){
 }
 let gestureZoom=null;
 diagramScroll.addEventListener('wheel',event=>{
- if(!event.ctrlKey)return;
+ if(!event.ctrlKey){extendAtEdge(event.deltaX,event.deltaY);return;}
  event.preventDefault();
  if(gestureZoom!==null)return;
  const delta=event.deltaY*(event.deltaMode===1?16:event.deltaMode===2?diagramScroll.clientHeight:1);
@@ -913,7 +994,7 @@ function scheduleViewportRulers(){
  rulerFrame=requestAnimationFrame(()=>{
   rulerFrame=0;
   const diagramRect=diagram.getBoundingClientRect(),frame=geometry();
-  const scale=diagramRect.width/1000;
+  const scale=diagramRect.width/canvasWidth();
   for(const [id,origin,unit,baseline,direction,label] of [
    ['meter-ruler',frame.x,100,23,-1,meterLabel],
    ['ken-ruler',frame.x+frame.w/2,KEN_CM,1,1,kenLabel],
@@ -924,7 +1005,7 @@ function scheduleViewportRulers(){
    if(!dimensions||!scale)continue;
    const rect=bar.getBoundingClientRect(),width=Math.min(rect.width,diagramScroll.clientWidth);
    const offset=diagramRect.left-rect.left;
-   rulerTicks(bar,{origin:offset+origin*scale,interval:unit*frame.scale*scale,
+   rulerTicks(bar,{origin:offset+(origin-canvasBounds.left)*scale,interval:unit*frame.scale*scale,
     left:Math.max(0,offset),right:Math.min(width,offset+diagramRect.width),
     width,baseline,direction,label});
   }
@@ -988,7 +1069,7 @@ for(const field of ['x','y']){
   if(!item||!dimensions||!Number.isFinite(value)){updateInspector();return;}
   const cm=positionCm(item);cm[field]=Math.round(value);
   const pos=positionSvg(cm.x,cm.y);
-  if(pos.x<0||pos.x>1000||pos.y<0||pos.y>650){updateInspector();status('図面の範囲内の座標を入力してください。');return;}
+  if(!inWorld(pos)){updateInspector();status('図面の範囲内の座標を入力してください。');return;}
   Object.assign(item,pos);changed();draw();updateInspector();
  };
 }
@@ -1000,7 +1081,7 @@ el('stage-dimensions').onsubmit=event=>{
  dimensions=next;
  if(old){
   const moved=items.map(item=>{const cm=positionCm(item,original);return {...item,...positionSvg(cm.x,cm.y)};});
-  if(moved.some(item=>item.x<0||item.x>1000||item.y<0||item.y>650)){
+  if(moved.some(item=>!inWorld(item))){
    dimensions=old;status('寸法変更後に図面外に出る機材があります。配置を見直してください。');return;
   }
   items=moved;
@@ -1138,8 +1219,8 @@ function duplicateSelected(){
  if(!members.length||locked(selected()))return;
  if(items.length+members.length>200){status('図面に配置できる項目は200件までです。');return;}
  const offset=dimensions?20*geometry().scale:12;
- const dx=Math.min(offset,...members.map(item=>1000-item.x));
- const dy=Math.min(offset,...members.map(item=>650-item.y));
+ const dx=Math.min(offset,...members.map(item=>WORLD_LIMIT-item.x));
+ const dy=Math.min(offset,...members.map(item=>WORLD_LIMIT-item.y));
  const groupId=members.length>1?crypto.randomUUID():undefined;
  const copies=members.map(item=>{
   const copy={...item,id:crypto.randomUUID(),x:item.x+dx,y:item.y+dy};
@@ -1246,7 +1327,9 @@ for(const [id,kind] of [['add-text','annotation-text'],['add-line','annotation-l
 function loadPlan(plan){
  closeObjectMenu();
  planEpoch++;
+ updateCanvas(defaultCanvas,false);
  setZoom(100);
+ diagramScroll.scrollTo(0,0);
  dimensions=plan.dimensions??null;
  assets=plan.assets??[];background=plan.background??null;
  renderPalette();
