@@ -271,3 +271,5 @@ h2 { font-size:16px; margin:0 0 12px; }
 @media print { #floating-actions { display:none!important; } }
 #floating-actions button[hidden] { display:none; }
 #floating-actions #float-group { width:auto; padding-inline:12px; border-radius:20px; white-space:nowrap; }
+
+#palette button > svg { flex:none; width:48px; height:42px; }

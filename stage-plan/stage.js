@@ -393,15 +393,30 @@ function bindPaletteDrag(button,handle,kind,label){
   setPlacement(placing===kind?null:kind);
  };
 }
+const palettePreviews=new IntersectionObserver(entries=>{
+ for(const {target,isIntersecting} of entries){
+  if(!isIntersecting)continue;
+  palettePreviews.unobserve(target);
+  const image=target.querySelector('image');
+  loadSourceImage(target.dataset.kind).then(data=>image.setAttribute('href',data)).catch(()=>{
+   const unavailable=svg('text',{x:0,y:0,'text-anchor':'middle','dominant-baseline':'central'});
+   unavailable.textContent='—';
+   image.replaceWith(unavailable);
+   target.title='プレビューを読み込めませんでした';
+  });
+ }
+},{rootMargin:'100px'});
 function renderPalette(){
  const palette=el('palette'),category=el('equipment-category').value;
  const query=el('equipment-search').value.trim().normalize('NFKC').toLowerCase();
  const matches=Object.entries(tools).filter(([kind,tool])=>
   tool.source&&(category==='source'||tool.group===category)&&
   (tool.label.normalize('NFKC').toLowerCase().includes(query)||kind.includes(query)));
+ palettePreviews.disconnect();
  palette.replaceChildren();
  el('equipment-count').textContent=matches.length+'件';
  palette.append(...matches.map(([kind,tool])=>paletteButton(kind,tool)));
+ for(const button of palette.children)palettePreviews.observe(button);
  el('rigging-palette').replaceChildren(...Object.entries(tools)
   .filter(([,tool])=>tool.group==='rigging')
   .map(([kind,tool])=>paletteButton(kind,tool)));
@@ -412,7 +427,7 @@ function paletteButton(kind,tool){
  button.setAttribute('aria-pressed',String(kind===placing));
  const icon=svg('svg',{viewBox:'-45 -40 90 80',fill:tool.color,color:tool.color,'aria-hidden':'true'});
  if(tool.asset)icon.append(svg('image',{href:tool.asset.data,x:-36,y:-36,width:72,height:72}));
- else if(tool.source)icon.append(svg('rect',{x:-24,y:-24,width:48,height:48,fill:'none',stroke:'currentColor','stroke-width':5}));
+ else if(tool.source)icon.append(svg('image',{x:-43,y:-37,width:86,height:74}));
  else icon.innerHTML=tool.shape;
  const name=document.createElement('span'),handle=document.createElement('span');
  name.textContent=tool.label;
