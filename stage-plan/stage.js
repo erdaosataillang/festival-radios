@@ -61,6 +61,8 @@ const status=message=>{el('plan-status').textContent=message;};
 const clamp=(value,min,max)=>Math.min(max,Math.max(min,value));
 let items=[],id=null,version=null,selectedId=null,placing=null,drag=null;
 let dirty=false,saving=null,opening=false,saveTimer,lastPlanKey;
+let recentObjects=[],recentObjectsKey=null;
+const recentLimit=20;
 function rememberPlan(){
  if(!lastPlanKey||!id)return;
  try{localStorage.setItem(lastPlanKey,id);}catch{}
@@ -410,6 +412,7 @@ function addItem(position){
  marked.clear();selectedId=item.id;
  setPlacement(null);
  changed();draw();updateInspector();
+ recordRecentObject(item.kind);
  if(item.kind==='annotation-text')editText(item);
 }
 
@@ -469,15 +472,26 @@ const palettePreviews=new IntersectionObserver(entries=>{
   });
  }
 },{rootMargin:'100px'});
+function recordRecentObject(kind){
+ if(!tools[kind]?.source||recentObjects[0]===kind)return;
+ recentObjects=[kind,...recentObjects.filter(entry=>entry!==kind)].slice(0,recentLimit);
+ if(recentObjectsKey)try{localStorage.setItem(recentObjectsKey,JSON.stringify(recentObjects));}catch{}
+ if(el('equipment-category').value==='recent'&&!el('equipment-search').value.trim())renderPalette();
+}
 function renderPalette(){
  const palette=el('palette'),category=el('equipment-category').value;
  const query=el('equipment-search').value.trim().normalize('NFKC').toLowerCase();
- const matches=Object.entries(tools).filter(([kind,tool])=>
-  tool.source&&(category==='source'||tool.group===category)&&
-  (tool.label.normalize('NFKC').toLowerCase().includes(query)||kind.includes(query)));
+ const showingRecent=category==='recent'&&!query;
+ const matches=showingRecent
+  ?recentObjects.filter(kind=>tools[kind]?.source).map(kind=>[kind,tools[kind]])
+  :Object.entries(tools).filter(([kind,tool])=>
+   tool.source&&(category==='recent'||category==='source'||tool.group===category)&&
+   (tool.label.normalize('NFKC').toLowerCase().includes(query)||kind.includes(query)));
  palettePreviews.disconnect();
  palette.replaceChildren();
- el('equipment-count').textContent=matches.length+'件';
+ el('equipment-count').textContent=showingRecent&&!matches.length
+  ?'最近使った素材はまだありません。「すべて」から選ぶか、素材名で検索してください。'
+  :matches.length+'件';
  palette.append(...matches.map(([kind,tool])=>paletteButton(kind,tool)));
  for(const button of palette.children)palettePreviews.observe(button);
  el('rigging-palette').replaceChildren(...Object.entries(tools)
@@ -792,6 +806,7 @@ replaceDialog.addEventListener('close',()=>{
  editToolbarItem(item=>{
   if(item.kind===kind)return;
   item.kind=kind;item.name=tool.label;item.size=tool.source.size;
+  recordRecentObject(kind);
   delete item.assetId;
  });
 });
@@ -1530,6 +1545,12 @@ el('close-list').onclick=()=>el('plan-picker').close();
 window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue='';}});
 setupSession(async profile=>{
  lastPlanKey=profile?.id?'stage-plan-last:'+profile.id:null;
+ recentObjectsKey=profile?.id?'stage-plan-recent-objects:'+profile.id:null;
+ recentObjects=[];
+ if(recentObjectsKey)try{
+  const history=JSON.parse(localStorage.getItem(recentObjectsKey)||'[]');
+  if(Array.isArray(history))recentObjects=[...new Set(history.filter(kind=>typeof kind==='string'))].slice(0,recentLimit);
+ }catch{}
  el('workspace').hidden=false;
  el('plan-welcome').hidden=false;
  try{
