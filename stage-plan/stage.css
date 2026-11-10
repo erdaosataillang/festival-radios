@@ -75,3 +75,11 @@ h2 { font-size:16px; margin:0 0 12px; }
  .diagram-panel { grid-row:5; }
  .inspector { grid-row:6; }
 }
+#edit-venue { width:100%; margin-top:8px; }
+#venue-dialog { width:min(600px,calc(100% - 30px)); max-height:85dvh; border:1px solid #d4d4d4; border-radius:12px; padding:20px; }
+#venue-dialog::backdrop { background:#0006; }
+#venue-form label { display:block; font-weight:600; margin:12px 0 6px; }
+#venue-form textarea { width:100%; font:inherit; padding:8px; resize:vertical; }
+.venue-presets { display:flex; gap:8px; flex-wrap:wrap; }
+.venue-curtain { stroke:#6f2757; stroke-width:5; stroke-dasharray:10 5; }
+.venue-curtain-label { fill:#6f2757; text-anchor:middle; font-size:16px; font-weight:700; paint-order:stroke; stroke:#fff; stroke-width:3px; }

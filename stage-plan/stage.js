@@ -5,7 +5,7 @@ const stageTypes={
  multipurpose:{label:'多目的ホール',description:'室内にステージと客席を配置する会場',bounds:[205,95,590,245]},
  temporary:{label:'仮設ステージ',description:'屋外やイベント会場に設置するステージ',bounds:[275,130,450,210]},
 };
-let stageType=null,dimensions=null;
+let stageType=null,dimensions=null,venue=null;
 const defaultDimensions={hall:[1400,700],multipurpose:[1000,500],temporary:[800,400]};
 function geometry(){
  const [x,y,w,h]=(stageTypes[stageType]||stageTypes.hall).bounds;
@@ -36,7 +36,7 @@ const clamp=(value,min,max)=>Math.min(max,Math.max(min,value));
 let items=[],id=null,version=null,selectedId=null,placing=null,drag=null;
 let dirty=false,saving=null,opening=false,saveTimer;
 let previous,undoStack=[],redoStack=[];
-const snapshot=()=>({title:el('plan-name').value,items:items.map(item=>({...item})),selectedId,dimensions});
+const snapshot=()=>({title:el('plan-name').value,items:items.map(item=>({...item})),selectedId,dimensions,venue});
 function scheduleSave(){
  clearTimeout(saveTimer);
  if(dirty&&!saving&&!opening&&!drag)saveTimer=setTimeout(()=>savePlan(),850);
@@ -59,7 +59,7 @@ function restoreChange(from,to){
  const focused=diagram.contains(document.activeElement);
  to.push(snapshot());
  const state=from.pop();
- dimensions=state.dimensions;drawStage();items=state.items;selectedId=state.selectedId;el('plan-name').value=state.title;
+ dimensions=state.dimensions;venue=state.venue;drawStage();items=state.items;selectedId=state.selectedId;el('plan-name').value=state.title;
  previous=snapshot();
  dirty=true;draw();updateInspector();scheduleSave();
  status('変更を自動保存します…');
@@ -239,7 +239,22 @@ el('remove-item').onclick=()=>{
 function drawStage(){
  const template=stageTypes[stageType]||stageTypes.hall;
  const {x,y,w:width,h:height,scale}=geometry();
- const boundary=el('stage-boundary');
+ const boundary=el('stage-boundary'),outline=el('stage-outline');
+ boundary.toggleAttribute('hidden',!!venue);
+ outline.toggleAttribute('hidden',!venue);
+ outline.setAttribute('stroke-dasharray',stageType==='temporary'?'8 5':'none');
+ const curtainLines=el('curtain-lines');
+ curtainLines.replaceChildren();
+ if(venue){
+  outline.setAttribute('points',venue.outline.map(([x,y])=>{const p=positionSvg(x,y);return p.x+','+p.y;}).join(' '));
+  for(const {name,start,end} of venue.curtains){
+   const a=positionSvg(...start),b=positionSvg(...end);
+   const path=svg('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,class:'venue-curtain'});
+   const label=svg('text',{x:(a.x+b.x)/2,y:(a.y+b.y)/2-8,class:'venue-curtain-label'});
+   label.textContent=name;
+   curtainLines.append(path,label);
+  }
+ }
  for(const [key,value] of Object.entries({x,y,width,height}))boundary.setAttribute(key,value);
  boundary.setAttribute('stroke-dasharray',stageType==='temporary'?'8 5':'none');
  el('stage-rear').setAttribute('y',y+35);
@@ -283,11 +298,55 @@ el('stage-dimensions').onsubmit=event=>{
    dimensions=old;status('寸法変更後に図面外に出る機材があります。配置を見直してください。');return;
   }
   items=moved;
+  if(venue)venue={...venue,outline:venue.outline.map(([x,y])=>[Math.round(x*next.width/old.width),Math.round(y*next.depth/old.depth)])};
  }
  drawStage();draw();updateInspector();changed();
 };
+const venueDialog=el('venue-dialog');
+function outlinePreset(kind){
+ const {width:w,depth:d}=dimensions;
+ const inset=Math.round(w/5),halfW=Math.round(w/2),halfD=Math.round(d/2);
+ if(kind==='trapezoid')return [[inset,0],[w-inset,0],[w,d],[0,d]];
+ if(kind==='l')return [[0,0],[w,0],[w,halfD],[halfW,halfD],[halfW,d],[0,d]];
+ return [[0,0],[w,0],[w,d],[0,d]];
+}
+function writeOutline(points){el('venue-outline').value=points.map(p=>p.join(', ')).join('\n');}
+el('edit-venue').onclick=()=>{
+ if(!dimensions){status('先にステージ寸法を適用してください。');el('stage-width').focus();return;}
+ writeOutline(venue?.outline||outlinePreset('rectangle'));
+ el('venue-curtains').value=(venue?.curtains||[]).map(c=>[c.name,...c.start,...c.end].join(', ')).join('\n');
+ el('venue-status').textContent='';
+ venueDialog.showModal();
+};
+el('close-venue').onclick=()=>venueDialog.close();
+for(const button of venueDialog.querySelectorAll('[data-outline]'))button.onclick=()=>writeOutline(outlinePreset(button.dataset.outline));
+el('curtain-preset').onclick=()=>{
+ const {width:w,depth:d}=dimensions;
+ const left=Math.round(w/10),right=w-left,back=Math.round(d/10),front=Math.round(d*0.8);
+ el('venue-curtains').value=[['左袖幕',left,back,left,front],['右袖幕',right,back,right,front],['奥幕',left,back,right,back]].map(row=>row.join(', ')).join('\n');
+};
+function rows(id){
+ return el(id).value.trim().split(/\r?\n/).filter(row=>row.trim()).map(row=>row.split(/[,，]/).map(cell=>cell.trim()));
+}
+function integer(value){return /^-?\d+$/.test(value)?Number(value):NaN;}
+el('venue-form').onsubmit=event=>{
+ event.preventDefault();
+ const outline=rows('venue-outline').map(row=>row.map(integer));
+ const {width:w,depth:d}=dimensions;
+ const area=outline.reduce((sum,[x,y],i)=>{const [nx,ny]=outline[(i+1)%outline.length];return sum+x*ny-nx*y;},0);
+ if(outline.length<3||outline.length>32||outline.some(p=>p.length!==2||!Number.isInteger(p[0])||!Number.isInteger(p[1])||p[0]<0||p[0]>w||p[1]<0||p[1]>d)||!area){
+  el('venue-status').textContent='外周は舞台寸法内の異なる3〜32点を、外周に沿って入力してください。';return;
+ }
+ const curtains=rows('venue-curtains').map(([name,...values])=>({name,coords:values.map(integer)}));
+ if(curtains.length>32||curtains.some(c=>!c.name||c.name.length>40||c.coords.length!==4||c.coords.some(n=>!Number.isInteger(n)||Math.abs(n)>20000)||(c.coords[0]===c.coords[2]&&c.coords[1]===c.coords[3]))){
+  el('venue-status').textContent='幕は名前と異なる始点・終点の座標を入力してください（32本まで）。';return;
+ }
+ venue={outline,curtains:curtains.map(({name,coords})=>({name,start:coords.slice(0,2),end:coords.slice(2)}))};
+ venueDialog.close();drawStage();changed();
+};
 function loadPlan(plan){
  dimensions=plan.dimensions??null;
+ venue=plan.venue??null;
  stageType=Object.hasOwn(stageTypes,plan.stageType)?plan.stageType:null;
  el('plan-welcome').hidden=true;el('plan-editor').hidden=false;
  drawStage();
@@ -331,7 +390,7 @@ function savePlan(manual=false){
   if(manual)el('plan-name').focus();
   return Promise.resolve();
  }
- const plan={title,...(stageType?{stageType}:{}),...(dimensions?{dimensions}:{}),items:items.map(item=>({...item}))};
+ const plan={title,...(stageType?{stageType}:{}),...(dimensions?{dimensions}:{}),...(venue?{venue}:{}),items:items.map(item=>({...item}))};
  el('save-plan').disabled=true;
  status('サーバーに保存しています…');
  saving=(async()=>{
@@ -339,7 +398,7 @@ function savePlan(manual=false){
   try{
    const result=await api('/stage/plans'+(id?'/'+id:''),{plan,version});
    id=result.id;version=result.version;
-   dirty=JSON.stringify(plan)!==JSON.stringify({title:el('plan-name').value.trim(),...(stageType?{stageType}:{}),...(dimensions?{dimensions}:{}),items});
+   dirty=JSON.stringify(plan)!==JSON.stringify({title:el('plan-name').value.trim(),...(stageType?{stageType}:{}),...(dimensions?{dimensions}:{}),...(venue?{venue}:{}),items});
    succeeded=true;
    status(dirty?'変更を自動保存します…':'サーバーに保存しました。');
   }catch(error){

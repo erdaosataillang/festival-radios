@@ -10,8 +10,8 @@
 <link rel="stylesheet" href="../assets/auth-gate.css?v=1">
 <link rel="stylesheet" href="../assets/official-theme.css?v=1">
 <link rel="stylesheet" href="../assets/astryx-ui.css?v=2">
-<link rel="stylesheet" href="stage.css">
-<script type="module" src="stage.js?v=stage-cm-1"></script>
+<link rel="stylesheet" href="stage.css?v=venue-layout-1">
+<script type="module" src="stage.js?v=venue-layout-1"></script>
 </head>
 <body>
 <header><span class="header-title">ステージ図面</span><a class="header-brand app-home" href="../">アプリ一覧</a><urakata-account></urakata-account></header>
@@ -37,7 +37,7 @@
 <div class="plan-layout">
  <aside class="panel equipment-panel">
   <section class="stage-dimensions"><h2>ステージ寸法</h2>
-<form id="stage-dimensions"><label>幅（cm）<input id="stage-width" type="number" min="100" max="20000" step="1" required></label><label>奥行き（cm）<input id="stage-depth" type="number" min="100" max="20000" step="1" required></label><button type="submit">寸法を適用</button></form></section>
+<form id="stage-dimensions"><label>幅（cm）<input id="stage-width" type="number" min="100" max="20000" step="1" required></label><label>奥行き（cm）<input id="stage-depth" type="number" min="100" max="20000" step="1" required></label><button type="submit">寸法を適用</button></form><button id="edit-venue" type="button">舞台形状・幕を設定</button></section>
 <h2>機材を追加</h2>
   <div id="palette" class="palette"></div>
   <p id="placement-help" class="hint">機材を選び、図面をクリックして配置します。</p>
@@ -61,11 +61,11 @@
    <defs><pattern id="stage-grid" width="25" height="25" patternUnits="userSpaceOnUse"><path d="M25 0H0V25" fill="none" stroke="#d9dfe7" stroke-width="1"/></pattern></defs>
    <rect width="1000" height="650" fill="#f8fafc"/>
    <rect id="grid" width="1000" height="650" fill="url(#stage-grid)"/>
-   <rect id="stage-boundary" x="155" y="82" width="690" height="335" rx="8" class="stage-area"/>
+   <polygon id="stage-outline" class="stage-area" hidden/><rect id="stage-boundary" x="155" y="82" width="690" height="335" rx="8" class="stage-area"/>
    <text id="stage-rear" x="500" y="119" class="diagram-label">ステージ奥</text>
    <text id="stage-front" x="500" y="397" class="diagram-label">ステージ前</text>
    <text x="500" y="580" class="diagram-label">客席側</text>
-   <g id="dimension-lines" aria-hidden="true"></g><g id="equipment"></g>
+   <g id="dimension-lines" aria-hidden="true"></g><g id="curtain-lines"></g><g id="equipment"></g>
   </svg>
   <p class="hint">機材をドラッグして移動できます。選択した機材は矢印キーでも動かせます。</p>
   <details class="hint"><summary>ショートカットキー</summary>
@@ -77,6 +77,26 @@
 <dialog id="stage-type-picker" aria-labelledby="stage-type-title">
  <div class="diagram-heading"><h2 id="stage-type-title">ステージタイプを選択</h2><button id="close-stage-types" type="button">閉じる</button></div>
  <div id="stage-types"></div>
+</dialog>
+<dialog id="venue-dialog" aria-labelledby="venue-title">
+ <form id="venue-form">
+  <div class="diagram-heading"><h2 id="venue-title">舞台形状・幕</h2><button id="close-venue" type="button">閉じる</button></div>
+  <p class="hint">座標はステージ左奥から右・手前に向かって計測します。単位はcmです。</p>
+  <label for="venue-outline">舞台外周</label>
+  <div class="venue-presets">
+   <button type="button" data-outline="rectangle">四角</button>
+   <button type="button" data-outline="trapezoid">台形</button>
+   <button type="button" data-outline="l">L字</button>
+  </div>
+  <p class="hint">外周に沿って「横位置, 奥行位置」を1行に1点。最後の点から最初の点へは自動で閉じます。</p>
+  <textarea id="venue-outline" rows="6" maxlength="1000" spellcheck="false" required></textarea>
+  <label for="venue-curtains">幕の配置</label>
+  <button id="curtain-preset" type="button">袖幕・奥幕の例を入力</button>
+  <p class="hint">1行ごとに「幕の名前, 始点の横, 始点の奥行, 終点の横, 終点の奥行」。幕のない会場は空欄にします。</p>
+  <textarea id="venue-curtains" rows="5" maxlength="3000" spellcheck="false"></textarea>
+  <p id="venue-status" role="status"></p>
+  <button type="submit" class="primary">図面に反映</button>
+ </form>
 </dialog>
 <dialog id="plan-picker" aria-labelledby="plan-list-title">
  <div class="diagram-heading"><h2 id="plan-list-title">保存した図面</h2><button id="close-list" type="button">閉じる</button></div>
