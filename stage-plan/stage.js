@@ -584,10 +584,9 @@ function lineEnd(event,start){
  return {x:worldCoordinate(start.x+length*Math.cos(angle)),y:worldCoordinate(start.y+length*Math.sin(angle))};
 }
 
-diagram.addEventListener('pointerdown',event=>{
- if(event.button!==0||!event.isPrimary||drag||spaceDown||event.target.closest('textarea'))return;
+let touchPlacement=null;
+function placeOnDiagram(event){
  if(placing==='annotation-line'){
-  event.preventDefault();
   if(lineDraft){
    const {start}=lineDraft;
    const end=lineEnd(event,start);
@@ -604,11 +603,22 @@ diagram.addEventListener('pointerdown',event=>{
   startLine(point(event));
   return;
  }
+ addItem(point(event));
+}
+diagram.addEventListener('pointerdown',event=>{
+ if(event.button!==0||!event.isPrimary||drag||spaceDown||event.target.closest('textarea'))return;
+ if(placing&&(event.pointerType==='touch'||placing==='annotation-line')){
+  event.preventDefault();
+  if(event.pointerType==='touch'){
+   touchPlacement={pointer:event.pointerId,x:event.clientX,y:event.clientY,kind:placing};
+  }else placeOnDiagram(event);
+  return;
+ }
  const grip=event.target.closest('[data-grip]')?.dataset.grip;
  if(grip&&selected()&&!locked(selected())){
   event.preventDefault();
   const item=selected(),{width,height}=symbolDimensions(item);
-  drag={pointer:event.pointerId,item,grip,width,height,x:item.x,y:item.y,angle:item.angle,start:point(event,false)};
+  drag={pointer:event.pointerId,item,grip,width,height,x:item.x,y:item.y,angle:item.angle,start:point(event,false),clientX:event.clientX,clientY:event.clientY};
   diagram.setPointerCapture(event.pointerId);
   if(grip==='rotate')drawControls();
   return;
@@ -651,12 +661,16 @@ diagram.addEventListener('pointerdown',event=>{
  drawControls();updateInspector();
 });
 diagram.addEventListener('pointermove',event=>{
+ if(event.pointerType==='touch'&&touchTap?.points.size>1)return;
+ if(touchPlacement?.pointer===event.pointerId&&Math.hypot(event.clientX-touchPlacement.x,event.clientY-touchPlacement.y)>10)
+  touchPlacement=null;
  if(lineDraft){
   const end=lineEnd(event,lineDraft.start);
   lineDraft.preview.setAttribute('x2',end.x);lineDraft.preview.setAttribute('y2',end.y);
   return;
  }
  if(!drag||event.pointerId!==drag.pointer)return;
+ if(event.pointerType==='touch'&&!drag.undoRecorded&&Math.hypot(event.clientX-drag.clientX,event.clientY-drag.clientY)<=10)return;
  const item=drag.item;
  const before=[item.x,item.y,item.angle,item.size].join(',');
  const end=point(event,!drag.grip);
@@ -692,6 +706,12 @@ diagram.addEventListener('pointermove',event=>{
  changed();
 });
 diagram.addEventListener('pointerup',event=>{
+ if(touchPlacement?.pointer===event.pointerId){
+  const pending=touchPlacement;touchPlacement=null;
+  if(placing===pending.kind&&Math.hypot(event.clientX-pending.x,event.clientY-pending.y)<=10)placeOnDiagram(event);
+  return;
+ }
+ if(event.pointerType==='touch'&&touchTap?.points.size>1)return;
  const label=event.target.closest('.rigging-name');
  const item=selected();
  if(!item||placing||locked(item))return;
@@ -912,18 +932,43 @@ function extendAtEdge(dx,dy){
  if(dy>0&&scrollHeight-clientHeight-scrollTop<edge)bounds.bottom=Math.min(Math.max(bounds.bottom,WORLD_LIMIT+CANVAS_CHUNK),bounds.bottom+CANVAS_CHUNK);
  if(Object.keys(bounds).some(key=>bounds[key]!==canvasBounds[key]))updateCanvas(bounds);
 }
-let touchPan=null;
+let touchPan=null,touchTap=null;
+function trackTouchTravel(touches){
+ if(!touchTap)return;
+ for(const touch of touches){
+  const start=touchTap.points.get(touch.identifier);
+  if(start&&Math.hypot(touch.clientX-start.clientX,touch.clientY-start.clientY)>10)touchTap.valid=false;
+ }
+}
 diagramScroll.addEventListener('touchstart',event=>{
+ if(!touchTap)touchTap={start:event.timeStamp,points:new Map(),valid:!event.target.closest('textarea'),overlap:false};
+ for(const touch of event.changedTouches)touchTap.points.set(touch.identifier,touch);
+ if(touchTap.points.size>2)touchTap.valid=false;
+ if(event.touches.length===2)touchTap.overlap=true;
+ if(touchTap.points.size>1)touchPlacement=null;
  touchPan=event.touches.length===1?event.touches[0]:null;
 },{passive:true});
 diagramScroll.addEventListener('touchmove',event=>{
+ trackTouchTravel(event.changedTouches);
  if(event.touches.length!==1){touchPan=null;return;}
  const touch=event.touches[0];
  if(touchPan&&!drag&&!placing)extendAtEdge(touchPan.clientX-touch.clientX,touchPan.clientY-touch.clientY);
  touchPan=touch;
 },{passive:true});
-for(const type of ['touchend','touchcancel'])
- diagramScroll.addEventListener(type,()=>{touchPan=null;},{passive:true});
+diagramScroll.addEventListener('touchend',event=>{
+ touchPan=null;
+ trackTouchTravel(event.changedTouches);
+ if(event.touches.length||!touchTap)return;
+ const tap=touchTap;touchTap=null;
+ if(tap.valid&&tap.overlap&&tap.points.size===2&&event.timeStamp-tap.start<=350&&!drag?.undoRecorded){
+  if(event.cancelable)event.preventDefault();
+  lastObjectTap=null;
+  restoreChange(undoStack,redoStack);
+ }
+},{passive:false});
+diagramScroll.addEventListener('touchcancel',()=>{
+ touchPan=null;touchTap=null;touchPlacement=null;
+},{passive:true});
 let printBounds=null;
 window.addEventListener('beforeprint',()=>{
  if(printBounds)return;
