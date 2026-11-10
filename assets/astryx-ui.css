@@ -56,6 +56,8 @@
   .official-ui .app-link {
     transition-duration: var(--duration-fast, 125ms);
   }
+  .official-ui .portal-hero h1 { color:#fff; }
+
   .official-ui .portal-hero h1,
   .official-ui body:not(.authenticated) > .auth-gate {
     animation-duration: var(--duration-medium, 300ms);
