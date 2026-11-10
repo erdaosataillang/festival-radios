@@ -27,7 +27,7 @@ function validatePlan(value,fail){
       !validPoint(c.start,-20000,20000,-20000,20000)||!validPoint(c.end,-20000,20000,-20000,20000)||
       (c.start[0]===c.end[0]&&c.start[1]===c.end[1])))fail(400,'舞台外周と幕の座標を確認してください。');
  }
- return {title,items,...(venue?{venue:{outline:venue.outline,curtains:venue.curtains.map(({name,start,end})=>({name:name.trim(),start,end}))}}:{}),...(dimensions?{dimensions:{width:dimensions.width,depth:dimensions.depth}}:{}),...(value.stageType?{stageType:value.stageType}:{})};
+ return {title,items,...(venue?{venue:{outline:venue.outline.map(([x,y])=>({x,y})),curtains:venue.curtains.map(({name,start,end})=>({name:name.trim(),start,end}))}}:{}),...(dimensions?{dimensions:{width:dimensions.width,depth:dimensions.depth}}:{}),...(value.stageType?{stageType:value.stageType}:{})};
 }
 async function handleStagePlans({req,res,body,db,user,Timestamp,now,fail}){
  const plans=db.collection('stagePlanUsers').doc(user.uid).collection('plans');
@@ -41,7 +41,7 @@ async function handleStagePlans({req,res,body,db,user,Timestamp,now,fail}){
   const doc=await plans.doc(match[1]).get();
   if(!doc.exists)fail(404,'図面が見つかりません。');
   const {title,items,version,stageType,dimensions,venue}=doc.data();
-  res.json({id:doc.id,title,items,version,...(venue?{venue}:{}),...(dimensions?{dimensions}:{}),...(stageType?{stageType}:{})});
+  res.json({id:doc.id,title,items,version,...(venue?{venue:{...venue,outline:venue.outline.map(({x,y})=>[x,y])}}:{}),...(dimensions?{dimensions}:{}),...(stageType?{stageType}:{})});
   return true;
  }
  if(req.method==='POST'&&(req.path==='/stage/plans'||match)){
