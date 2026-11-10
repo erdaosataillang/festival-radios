@@ -10,8 +10,8 @@
 <link rel="stylesheet" href="../assets/auth-gate.css?v=1">
 <link rel="stylesheet" href="../assets/official-theme.css?v=1">
 <link rel="stylesheet" href="../assets/astryx-ui.css?v=2">
-<link rel="stylesheet" href="stage.css?v=drawing-sheet-1">
-<script type="module" src="stage.js?v=drawing-sheet-1"></script>
+<link rel="stylesheet" href="stage.css?v=drawing-sheet-2">
+<script type="module" src="stage.js?v=drawing-sheet-2"></script>
 </head>
 <body>
 <header><span class="header-title">ステージ図面</span><a class="header-brand app-home" href="../">アプリ一覧</a><urakata-account></urakata-account></header>
@@ -60,7 +60,7 @@
     <p class="hint">原点は舞台の左奥です。左側・奥側はマイナスで入力できます。</p>
 <div class="field-pair"><label for="item-x">横位置（cm）</label><input id="item-x" type="number" step="1"></div>
 <div class="field-pair"><label for="item-y">奥行位置（cm）</label><input id="item-y" type="number" step="1"></div>
-<div class="field-pair"><label for="item-source">機材表の区分</label><select id="item-source"><option value="venue">借用会場備品</option><option value="bring">持込機材</option></select></div>
+<div class="field-pair field-source"><label for="item-source">機材表の区分</label><select id="item-source"><option value="venue">借用会場備品</option><option value="bring">持込機材</option></select></div>
     <div class="field-pair"><label for="item-quantity">機材表の数量</label><input id="item-quantity" type="number" min="1" max="999" step="1"></div>
     <div class="field-pair" id="item-size-row" hidden><label for="item-size">記号幅（cm）</label><input id="item-size" type="number" min="1" max="20000" step="1"></div>
     <button id="remove-item" class="danger" type="button">機材を削除</button>
@@ -78,7 +78,7 @@
    <polygon id="stage-outline" class="stage-area" hidden/><rect id="stage-boundary" x="155" y="82" width="690" height="335" rx="8" class="stage-area"/>
    <text id="stage-rear" x="500" y="119" class="diagram-label">ステージ奥</text>
    <text id="stage-front" x="500" y="397" class="diagram-label">ステージ前</text>
-   <text x="500" y="580" class="diagram-label">客席側</text>
+   <text id="stage-audience" x="500" y="580" class="diagram-label">客席側</text>
    <g id="center-line" aria-hidden="true"><line x1="500" y1="35" x2="500" y2="600" stroke="#56606b" stroke-dasharray="14 6 2 6"/><text x="500" y="620" class="diagram-label">CL</text></g><g id="dimension-lines" aria-hidden="true"></g><g id="curtain-lines"></g><g id="equipment"></g>
   </svg>
   <section class="equipment-schedule" aria-labelledby="schedule-title"><h2 id="schedule-title">機材表</h2><div id="schedule-tables"></div></section>

@@ -292,9 +292,9 @@ el('item-source').onchange=()=>{
  item.source=el('item-source').value;
  changed();renderSchedule();
 };
-el('item-quantity').onchange=()=>{
+el('item-quantity').oninput=()=>{
  const item=selected(),field=el('item-quantity');
- if(!item||!field.checkValidity()||!Number.isInteger(field.valueAsNumber)){updateInspector();return;}
+ if(!item||!field.checkValidity()||!Number.isInteger(field.valueAsNumber))return;
  item.quantity=field.valueAsNumber;
  changed();renderSchedule();
 };

@@ -95,7 +95,7 @@ h2 { font-size:16px; margin:0 0 12px; }
 }
 .diagram-tools { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
 .equipment-library a { font-size:12px; }
-#diagram.has-background :is(#stage-boundary,#stage-outline,#stage-rear,#stage-front,#grid,#center-line,#dimension-lines) { display:none; }
+#diagram.has-background :is(#stage-boundary,#stage-outline,#stage-rear,#stage-front,#stage-audience,#grid,#center-line,#dimension-lines) { display:none; }
 .equipment-schedule { margin-top:16px; }
 #schedule-tables { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
 #schedule-tables h3 { font-size:13px; margin:0 0 6px; }
@@ -113,3 +113,6 @@ h2 { font-size:16px; margin:0 0 12px; }
  .equipment-item .selection { display:none; }
  #schedule-tables section { break-inside:avoid; }
 }
+
+.field-source { grid-template-columns:1fr; }
+.field-source select { width:100%; min-height:38px; }
