@@ -1,12 +1,12 @@
 import {api,setupSession} from './session.js';
-import {equipmentShape} from './equipment-symbols.js';
+import {equipmentShape} from './equipment-symbols.js?v=2';
 
 const stageTypes={
  hall:{label:'ホール',description:'舞台と客席の区画が分かれた会場',bounds:[155,82,690,335]},
  multipurpose:{label:'多目的ホール',description:'室内にステージと客席を配置する会場',bounds:[205,95,590,245]},
  temporary:{label:'仮設ステージ',description:'屋外やイベント会場に設置するステージ',bounds:[275,130,450,210]},
 };
-let stageType=null,dimensions=null,venue=null;
+let stageType=null,dimensions=null,venue=null,assets=[],background=null,planEpoch=0;
 const defaultDimensions={hall:[1400,700],multipurpose:[1000,500],temporary:[800,400]};
 function geometry(){
  const [x,y,w,h]=(stageTypes[stageType]||stageTypes.hall).bounds;
@@ -26,7 +26,7 @@ const quickTools=['speaker','monitor','sub','light','truss'];
 const colors={speakers:'#255a88',instruments:'#326f64',audio:'#47456a',lighting:'#99610e',stage:'#5b6472'};
 const tools=Object.create(null);
 async function loadCatalog(){
- const response=await fetch(new URL('./catalog.json?v=1',import.meta.url));
+ const response=await fetch(new URL('./catalog.json?v=2',import.meta.url));
  if(!response.ok)throw new Error('機材一覧を読み込めませんでした。');
  for(const {id,label,group,symbol,mark} of await response.json())
   tools[id]={label,group,color:colors[group],shape:equipmentShape(symbol,mark)};
@@ -40,7 +40,7 @@ const clamp=(value,min,max)=>Math.min(max,Math.max(min,value));
 let items=[],id=null,version=null,selectedId=null,placing=null,drag=null;
 let dirty=false,saving=null,opening=false,saveTimer;
 let previous,undoStack=[],redoStack=[];
-const snapshot=()=>({title:el('plan-name').value,items:items.map(item=>({...item})),selectedId,dimensions,venue});
+const snapshot=()=>({title:el('plan-name').value,items:items.map(item=>({...item})),selectedId,dimensions,venue,assets,background});
 function scheduleSave(){
  clearTimeout(saveTimer);
  if(dirty&&!saving&&!opening&&!drag)saveTimer=setTimeout(()=>savePlan(),850);
@@ -63,7 +63,7 @@ function restoreChange(from,to){
  const focused=diagram.contains(document.activeElement);
  to.push(snapshot());
  const state=from.pop();
- dimensions=state.dimensions;venue=state.venue;drawStage();items=state.items;selectedId=state.selectedId;el('plan-name').value=state.title;
+ dimensions=state.dimensions;venue=state.venue;assets=state.assets;background=state.background;setPlacement(null);renderPalette();drawStage();items=state.items;selectedId=state.selectedId;el('plan-name').value=state.title;
  previous=snapshot();
  dirty=true;draw();updateInspector();scheduleSave();
  status('変更を自動保存します…');
@@ -81,7 +81,7 @@ function setPlacement(kind){
  diagram.classList.toggle('placing',!!kind);
  for(const button of el('palette').querySelectorAll('button'))
   button.setAttribute('aria-pressed',String(button.dataset.kind===kind));
- el('placement-help').textContent=kind?tools[kind].label+'を置く位置をクリックまたはタップしてください。':'機材を選び、図面をクリックまたはタップして配置します。';
+ el('placement-help').textContent=kind?toolFor(kind).label+'を置く位置をクリックまたはタップしてください。':'機材を選び、図面をクリックまたはタップして配置します。';
 }
 
 function updateInspector(){
@@ -92,15 +92,49 @@ function updateInspector(){
  el('item-name').value=item.name;
  el('item-angle').value=item.angle;
  el('item-height').value=item.height;
+ el('item-source').value=item.source||'venue';
+ el('item-quantity').value=item.quantity??1;
+ el('item-size-row').hidden=item.kind!=='imported-svg'||!dimensions;
+ el('item-size').value=item.size??60;
  const pos=positionCm(item);
  el('item-x').value=dimensions?pos.x:'';el('item-y').value=dimensions?pos.y:'';
  el('item-x').disabled=el('item-y').disabled=!dimensions;
 }
 
+function toolFor(key){
+ const asset=assets.find(entry=>entry.id===key);
+ return asset?{label:asset.name,group:'imported',asset}:tools[key];
+}
+function renderSchedule(){
+ const root=el('schedule-tables');
+ root.replaceChildren();
+ for(const [key,title] of [['venue','借用会場備品'],['bring','持込機材']]){
+  const section=document.createElement('section'),heading=document.createElement('h3');
+  heading.textContent=title;
+  section.append(heading);
+  const counts=new Map();
+  for(const item of items){
+   if((item.source||'venue')!==key)continue;
+   const label=item.name||toolFor(item.assetId||item.kind).label;
+   counts.set(label,(counts.get(label)||0)+(item.quantity??1));
+  }
+  if(!counts.size){const empty=document.createElement('p');empty.textContent='なし';section.append(empty);}
+  else{
+   const table=document.createElement('table');
+   for(const [name,count] of counts){
+    const row=table.insertRow();
+    row.insertCell().textContent=name;
+    row.insertCell().textContent=count+'点';
+   }
+   section.append(table);
+  }
+  root.append(section);
+ }
+}
 function draw(){
  equipment.replaceChildren();
  for(const item of items){
-  const tool=tools[item.kind];
+  const tool=toolFor(item.assetId||item.kind);
   const group=svg('g',{
    transform:`translate(${item.x} ${item.y})`,tabindex:0,role:'button',
    'aria-label':item.name||tool.label,'aria-pressed':String(item.id===selectedId),
@@ -108,7 +142,11 @@ function draw(){
    'data-item':item.id,
   });
   const symbol=svg('g',{transform:`rotate(${item.angle})`,fill:tool.color,color:tool.color});
-  symbol.innerHTML=tool.shape;
+  if(tool.asset){
+   const width=dimensions?(item.size??60)*geometry().scale:48;
+   const height=width/tool.asset.ratio;
+   symbol.append(svg('image',{href:tool.asset.data,x:-width/2,y:-height/2,width,height}));
+  }else symbol.innerHTML=tool.shape;
   const hit=svg('rect',{x:-46,y:-37,width:92,height:74,rx:6,fill:'transparent'});
   const outline=svg('rect',{x:-46,y:-37,width:92,height:74,rx:6,class:'selection'});
   const label=svg('text',{y:49,'pointer-events':'none'});
@@ -116,6 +154,7 @@ function draw(){
   group.append(hit,symbol,outline,label);
   equipment.append(group);
  }
+ renderSchedule();
 }
 
 function point(event){
@@ -131,8 +170,8 @@ function snapPosition(pos){
 }
 function addItem(position){
  if(items.length>=200){status('1つの図面に配置できる機材は200件までです。');return;}
- const kind=placing;
- const item={id:crypto.randomUUID(),kind,name:tools[kind].label,...snapPosition(position),angle:0,height:0};
+ const tool=toolFor(placing);
+ const item={id:crypto.randomUUID(),kind:tool.asset?'imported-svg':placing,...(tool.asset?{assetId:tool.asset.id,size:60}:{}),name:tool.label,...snapPosition(position),angle:0,height:0};
  items.push(item);
  selectedId=item.id;
  setPlacement(null);
@@ -142,7 +181,7 @@ function addItem(position){
 function renderPalette(){
  const palette=el('palette'),category=el('equipment-category').value;
  const query=el('equipment-search').value.trim().normalize('NFKC').toLowerCase();
- const matches=Object.entries(tools).filter(([kind,tool])=>{
+ const matches=[...Object.entries(tools),...assets.filter(asset=>asset.id!==background).map(asset=>[asset.id,toolFor(asset.id)])].filter(([kind,tool])=>{
   if(query)return (category==='quick'||category==='all'||tool.group===category)&&
    (tool.label.normalize('NFKC').toLowerCase().includes(query)||kind.includes(query));
   return category==='all'||(category==='quick'?quickTools.includes(kind):tool.group===category);
@@ -154,7 +193,8 @@ function renderPalette(){
   button.type='button';button.dataset.kind=kind;
   button.setAttribute('aria-pressed',String(kind===placing));
   const icon=svg('svg',{viewBox:'-45 -40 90 80',fill:tool.color,color:tool.color,'aria-hidden':'true'});
-  icon.innerHTML=tool.shape;
+  if(tool.asset)icon.append(svg('image',{href:tool.asset.data,x:-36,y:-36,width:72,height:72}));
+  else icon.innerHTML=tool.shape;
   button.append(icon,document.createTextNode(tool.label));
   button.onclick=()=>setPlacement(placing===kind?null:kind);
   palette.append(button);
@@ -247,12 +287,91 @@ for(const [id,key,max,round] of [['item-angle','angle',359,Math.round],['item-he
   changed();draw();updateInspector();
  };
 }
+el('item-source').onchange=()=>{
+ const item=selected();if(!item)return;
+ item.source=el('item-source').value;
+ changed();renderSchedule();
+};
+el('item-quantity').onchange=()=>{
+ const item=selected(),field=el('item-quantity');
+ if(!item||!field.checkValidity()||!Number.isInteger(field.valueAsNumber)){updateInspector();return;}
+ item.quantity=field.valueAsNumber;
+ changed();renderSchedule();
+};
+el('item-size').onchange=()=>{
+ const item=selected(),field=el('item-size');
+ if(!item||!field.checkValidity()||!Number.isInteger(field.valueAsNumber)){updateInspector();return;}
+ item.size=field.valueAsNumber;
+ changed();draw();
+};
+el('print-plan').onclick=()=>{
+ el('print-title').textContent=el('plan-name').value.trim()||'舞台仕込み図';
+ window.print();
+};
+
+async function importSvg(file){
+ if(file.size>480000)throw new Error('SVGファイルは480 KB以下にしてください。');
+ const source=await file.text();
+ const inspect=source.replace(/<!DOCTYPE\s+svg\s+(?:PUBLIC|SYSTEM)\s+[^<\[>]+>/i,'');
+ if(/<!DOCTYPE|<!ENTITY/i.test(inspect))throw new Error('このSVGの形式には対応していません。');
+ const documentSvg=new DOMParser().parseFromString(inspect,'image/svg+xml');
+ const root=documentSvg.documentElement;
+ if(root.localName!=='svg'||root.namespaceURI!=='http://www.w3.org/2000/svg'||documentSvg.querySelector('parsererror'))
+  throw new Error('SVGファイルを選択してください。');
+ const viewBox=root.getAttribute('viewBox')?.trim().split(/[\s,]+/).map(Number);
+ const w=viewBox?.length===4?viewBox[2]:parseFloat(root.getAttribute('width'));
+ const h=viewBox?.length===4?viewBox[3]:parseFloat(root.getAttribute('height'));
+ const ratio=w>0&&h>0?clamp(w/h,.02,50):1;
+ const data=await new Promise((resolve,reject)=>{
+  const reader=new FileReader();
+  reader.onload=()=>resolve(reader.result);
+  reader.onerror=reject;
+  reader.readAsDataURL(new Blob([source],{type:'image/svg+xml'}));
+ });
+ return {id:crypto.randomUUID(),name:file.name.replace(/\.svg$/i,'').slice(0,80)||'SVG記号',ratio,data};
+}
+for(const [buttonId,inputId,isBackground] of [['import-symbol','svg-symbol-file',false],['import-background','svg-background-file',true]]){
+ const input=el(inputId);
+ el(buttonId).onclick=()=>input.click();
+ input.onchange=async()=>{
+  const file=input.files[0];input.value='';
+  if(!file)return;
+  const epoch=planEpoch;
+  try{
+   const asset=await importSvg(file);
+   if(epoch!==planEpoch)return;
+   const kept=isBackground?assets.filter(entry=>entry.id!==background||items.some(item=>item.assetId===entry.id)):assets;
+   if(kept.length>=60||kept.reduce((size,item)=>size+item.data.length,asset.data.length)>650000)
+    throw new Error('図面に保存できるSVGの容量を超えました。');
+   assets=[...kept,asset];
+   if(isBackground){background=asset.id;drawStage();}
+   else{
+    el('equipment-category').value='imported';el('equipment-search').value='';
+    setPlacement(asset.id);
+   }
+   renderPalette();changed();
+  }catch(error){status(error.message||'SVGを読み込めませんでした。');}
+ };
+}
+el('remove-background').onclick=()=>{
+ const old=background;
+ background=null;
+ assets=assets.filter(asset=>asset.id!==old||items.some(item=>item.assetId===old));
+ drawStage();renderPalette();changed();
+};
+
 el('remove-item').onclick=()=>{
  items=items.filter(item=>item.id!==selectedId);
  selectedId=null;changed();draw();updateInspector();
 };
 
 function drawStage(){
+ const image=el('diagram-background'),asset=assets.find(item=>item.id===background);
+ image.toggleAttribute('hidden',!asset);
+ diagram.classList.toggle('has-background',!!asset);
+ el('remove-background').hidden=!asset;
+ if(asset)image.setAttribute('href',asset.data);
+ else image.removeAttribute('href');
  const template=stageTypes[stageType]||stageTypes.hall;
  const {x,y,w:width,h:height,scale}=geometry();
  const boundary=el('stage-boundary'),outline=el('stage-outline');
@@ -361,7 +480,10 @@ el('venue-form').onsubmit=event=>{
  venueDialog.close();drawStage();changed();
 };
 function loadPlan(plan){
+ planEpoch++;
  dimensions=plan.dimensions??null;
+ assets=plan.assets??[];background=plan.background??null;
+ renderPalette();
  venue=plan.venue??null;
  stageType=Object.hasOwn(stageTypes,plan.stageType)?plan.stageType:null;
  el('plan-welcome').hidden=true;el('plan-editor').hidden=false;
@@ -406,7 +528,7 @@ function savePlan(manual=false){
   if(manual)el('plan-name').focus();
   return Promise.resolve();
  }
- const plan={title,...(stageType?{stageType}:{}),...(dimensions?{dimensions}:{}),...(venue?{venue}:{}),items:items.map(item=>({...item}))};
+ const plan={title,...(stageType?{stageType}:{}),...(dimensions?{dimensions}:{}),...(venue?{venue}:{}),assets,background,items:items.map(item=>({...item}))};
  el('save-plan').disabled=true;
  status('サーバーに保存しています…');
  saving=(async()=>{
@@ -414,7 +536,7 @@ function savePlan(manual=false){
   try{
    const result=await api('/stage/plans'+(id?'/'+id:''),{plan,version});
    id=result.id;version=result.version;
-   dirty=JSON.stringify(plan)!==JSON.stringify({title:el('plan-name').value.trim(),...(stageType?{stageType}:{}),...(dimensions?{dimensions}:{}),...(venue?{venue}:{}),items});
+   dirty=JSON.stringify(plan)!==JSON.stringify({title:el('plan-name').value.trim(),...(stageType?{stageType}:{}),...(dimensions?{dimensions}:{}),...(venue?{venue}:{}),assets,background,items});
    succeeded=true;
    status(dirty?'変更を自動保存します…':'サーバーに保存しました。');
   }catch(error){

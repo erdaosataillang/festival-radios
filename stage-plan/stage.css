@@ -93,3 +93,23 @@ h2 { font-size:16px; margin:0 0 12px; }
  .equipment-panel .equipment-library { grid-row:3; }
  .equipment-library .palette { max-height:190px; }
 }
+.diagram-tools { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+.equipment-library a { font-size:12px; }
+#diagram.has-background :is(#stage-boundary,#stage-outline,#stage-rear,#stage-front,#grid,#center-line,#dimension-lines) { display:none; }
+.equipment-schedule { margin-top:16px; }
+#schedule-tables { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+#schedule-tables h3 { font-size:13px; margin:0 0 6px; }
+#schedule-tables table { width:100%; border-collapse:collapse; }
+#schedule-tables td { border:1px solid #ddd; padding:5px 8px; font-size:12px; }
+#schedule-tables td:last-child { width:58px; white-space:nowrap; text-align:right; }
+#schedule-tables p { font-size:12px; }
+#print-title { display:none; }
+@media print {
+ @page { size:A4 portrait; margin:12mm; }
+ body>header,.plan-bar,.plan-status,.equipment-panel,.diagram-tools,.diagram-panel>.hint,.diagram-heading,dialog { display:none!important; }
+ main,.plan-layout,.diagram-panel { display:block; width:100%; max-width:none; padding:0; margin:0; border:0; }
+ #print-title { display:block; font-size:18pt; margin:0 0 8mm; }
+ #diagram { max-height:155mm; border:0; }
+ .equipment-item .selection { display:none; }
+ #schedule-tables section { break-inside:avoid; }
+}

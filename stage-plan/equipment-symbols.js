@@ -25,6 +25,7 @@ const shapes={
  light:box(-12,-22,24,29,5)+'<path d="M-8 10L-24 30h48L8 10z" opacity=".42"/>'+white(box(-9,0,18,5)),
  moving:box(-18,-17,36,34)+white(circle(0,0,13))+circle(0,0,8)+'<path d="M-8 18H8L0 28z"/>',
  truss:'<path d="M-42-9h84v18h-84zM-42 9l14-18 14 18L0-9 14 9 28-9 42 9" fill="none" stroke="currentColor" stroke-width="3"/>',
+ stairs:box(-28,-20,56,40)+white(box(-24,-13,48,5)+box(-24,5,48,5)),
  table:box(-39,-22,78,44)+white(box(-33,-16,66,32,1)),
  chair:box(-18,-13,36,30)+box(-20,-23,40,7)+white(box(-13,-7,26,17)),
  stand:'<path d="M-20-20h40v16h-40zM-2-4h4v19h-4zM-15 17h30v4h-30z"/>',

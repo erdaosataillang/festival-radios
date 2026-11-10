@@ -10,8 +10,8 @@
 <link rel="stylesheet" href="../assets/auth-gate.css?v=1">
 <link rel="stylesheet" href="../assets/official-theme.css?v=1">
 <link rel="stylesheet" href="../assets/astryx-ui.css?v=2">
-<link rel="stylesheet" href="stage.css?v=equipment-library-1">
-<script type="module" src="stage.js?v=equipment-library-1"></script>
+<link rel="stylesheet" href="stage.css?v=drawing-sheet-1">
+<script type="module" src="stage.js?v=drawing-sheet-1"></script>
 </head>
 <body>
 <header><span class="header-title">ステージ図面</span><a class="header-brand app-home" href="../">アプリ一覧</a><urakata-account></urakata-account></header>
@@ -30,7 +30,7 @@
  <div class="plan-actions">
   <button id="new-plan" type="button">新規</button>
   <button id="open-list" type="button">保存した図面</button>
-  <button id="save-plan" class="primary" type="button">今すぐ保存</button>
+  <button id="print-plan" type="button">印刷・PDF</button><button id="save-plan" class="primary" type="button">今すぐ保存</button>
  </div>
 </div>
 <p id="plan-status" class="plan-status" role="status">変更はサーバーに自動保存されます。</p>
@@ -41,10 +41,13 @@
 <h2>機材を追加</h2>
   <div class="equipment-library">
    <label for="equipment-category">カテゴリ</label>
-   <select id="equipment-category"><option value="quick">よく使う機材</option><option value="speakers">スピーカー</option><option value="instruments">楽器</option><option value="audio">音響機器</option><option value="lighting">照明</option><option value="stage">舞台備品</option><option value="all">すべて</option></select>
+   <select id="equipment-category"><option value="quick">よく使う機材</option><option value="speakers">スピーカー</option><option value="instruments">楽器</option><option value="audio">音響機器</option><option value="lighting">照明</option><option value="stage">舞台備品</option><option value="imported">読み込んだSVG</option><option value="all">すべて</option></select>
    <label for="equipment-search">機材検索</label><input id="equipment-search" type="search" placeholder="機材名で検索">
    <p id="equipment-count" class="hint" role="status"></p>
    <div id="palette" class="palette"></div>
+   <button id="import-symbol" type="button">記号SVGを読み込む</button>
+   <input id="svg-symbol-file" type="file" accept=".svg,image/svg+xml" hidden>
+   <a href="https://template.kiwisoundworks.com/download.html" target="_blank" rel="noopener">配布元のSVGをダウンロード ↗</a>
   </div>
   <p id="placement-help" class="hint">機材を選び、図面をクリックして配置します。</p>
   <section class="inspector" aria-labelledby="inspector-title">
@@ -57,22 +60,28 @@
     <p class="hint">原点は舞台の左奥です。左側・奥側はマイナスで入力できます。</p>
 <div class="field-pair"><label for="item-x">横位置（cm）</label><input id="item-x" type="number" step="1"></div>
 <div class="field-pair"><label for="item-y">奥行位置（cm）</label><input id="item-y" type="number" step="1"></div>
-<button id="remove-item" class="danger" type="button">機材を削除</button>
+<div class="field-pair"><label for="item-source">機材表の区分</label><select id="item-source"><option value="venue">借用会場備品</option><option value="bring">持込機材</option></select></div>
+    <div class="field-pair"><label for="item-quantity">機材表の数量</label><input id="item-quantity" type="number" min="1" max="999" step="1"></div>
+    <div class="field-pair" id="item-size-row" hidden><label for="item-size">記号幅（cm）</label><input id="item-size" type="number" min="1" max="20000" step="1"></div>
+    <button id="remove-item" class="danger" type="button">機材を削除</button>
    </fieldset>
   </section>
  </aside>
  <section class="panel diagram-panel" aria-labelledby="diagram-title">
-  <div class="diagram-heading"><h2 id="diagram-title">平面図 <span id="stage-type-label"></span></h2><button id="toggle-grid" type="button" aria-pressed="true">グリッド</button></div>
+  <div class="diagram-heading"><h2 id="diagram-title">平面図 <span id="stage-type-label"></span></h2><div class="diagram-tools">
+<button id="toggle-grid" type="button" aria-pressed="true">グリッド</button><button id="import-background" type="button">下絵SVG</button><button id="remove-background" type="button" hidden>下絵を外す</button><input id="svg-background-file" type="file" accept=".svg,image/svg+xml" hidden></div></div>
+<h1 id="print-title"></h1>
   <svg id="diagram" viewBox="0 0 1000 650" aria-label="ステージ機材配置図">
    <defs><pattern id="stage-grid" width="25" height="25" patternUnits="userSpaceOnUse"><path d="M25 0H0V25" fill="none" stroke="#d9dfe7" stroke-width="1"/></pattern></defs>
    <rect width="1000" height="650" fill="#f8fafc"/>
-   <rect id="grid" width="1000" height="650" fill="url(#stage-grid)"/>
+   <image id="diagram-background" x="0" y="0" width="1000" height="650" preserveAspectRatio="xMidYMid meet" hidden/><rect id="grid" width="1000" height="650" fill="url(#stage-grid)"/>
    <polygon id="stage-outline" class="stage-area" hidden/><rect id="stage-boundary" x="155" y="82" width="690" height="335" rx="8" class="stage-area"/>
    <text id="stage-rear" x="500" y="119" class="diagram-label">ステージ奥</text>
    <text id="stage-front" x="500" y="397" class="diagram-label">ステージ前</text>
    <text x="500" y="580" class="diagram-label">客席側</text>
-   <g id="dimension-lines" aria-hidden="true"></g><g id="curtain-lines"></g><g id="equipment"></g>
+   <g id="center-line" aria-hidden="true"><line x1="500" y1="35" x2="500" y2="600" stroke="#56606b" stroke-dasharray="14 6 2 6"/><text x="500" y="620" class="diagram-label">CL</text></g><g id="dimension-lines" aria-hidden="true"></g><g id="curtain-lines"></g><g id="equipment"></g>
   </svg>
+  <section class="equipment-schedule" aria-labelledby="schedule-title"><h2 id="schedule-title">機材表</h2><div id="schedule-tables"></div></section>
   <p class="hint">機材をドラッグして移動できます。選択した機材は矢印キーでも動かせます。</p>
   <details class="hint"><summary>ショートカットキー</summary>
    <p>⌘ / Ctrl + S　今すぐ保存<br>⌘ / Ctrl + Z　元に戻す<br>⌘ / Ctrl + Shift + Z または Ctrl + Y　やり直す<br>1〜5　機材の種類を選択<br>矢印キー　機材を移動（Shiftで大きく移動）<br>Delete / Backspace　選択した機材を削除<br>Esc　配置モードを解除</p>

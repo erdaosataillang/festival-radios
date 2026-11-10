@@ -432,5 +432,47 @@
     "group": "stage",
     "symbol": "position",
     "mark": ""
+  },
+  {
+    "id": "platform-3x6",
+    "label": "3×6平台",
+    "group": "stage",
+    "symbol": "table",
+    "mark": "3×6"
+  },
+  {
+    "id": "hakouma",
+    "label": "箱馬",
+    "group": "stage",
+    "symbol": "box",
+    "mark": "箱馬"
+  },
+  {
+    "id": "timber-block",
+    "label": "木台",
+    "group": "stage",
+    "symbol": "box",
+    "mark": "木台"
+  },
+  {
+    "id": "single-step",
+    "label": "一段階段",
+    "group": "stage",
+    "symbol": "stairs",
+    "mark": ""
+  },
+  {
+    "id": "conductor",
+    "label": "指揮台",
+    "group": "stage",
+    "symbol": "table",
+    "mark": "指揮"
+  },
+  {
+    "id": "piano-bench",
+    "label": "ピアノ椅子",
+    "group": "stage",
+    "symbol": "chair",
+    "mark": ""
   }
 ]
