@@ -612,18 +612,47 @@ diagramScroll.addEventListener('lostpointercapture',()=>{
  pan=null;diagramScroll.classList.remove('panning');
 });
 let zoom=100;
-function setZoom(value){
- const previous=zoom;
- zoom=clamp(value,50,400);
- const x=(diagramScroll.scrollLeft+diagramScroll.clientWidth/2)/previous;
- const y=(diagramScroll.scrollTop+diagramScroll.clientHeight/2)/previous;
+function setZoom(value,anchor){
+ const next=clamp(value,50,400);
+ if(next===zoom&&!anchor&&diagram.style.getPropertyValue('--diagram-zoom'))return;
+ const viewport=diagramScroll.getBoundingClientRect();
+ const x=anchor?.clientX??viewport.left+diagramScroll.clientWidth/2;
+ const y=anchor?.clientY??viewport.top+diagramScroll.clientHeight/2;
+ const before=diagram.getBoundingClientRect();
+ zoom=next;
  diagram.style.setProperty('--diagram-zoom',zoom+'%');
- el('zoom-reset').textContent=zoom+'%';
+ el('zoom-reset').textContent=Math.round(zoom)+'%';
  el('zoom-out').disabled=zoom<=50;
  el('zoom-in').disabled=zoom>=400;
- diagramScroll.scrollTo(Math.max(0,x*zoom-diagramScroll.clientWidth/2),Math.max(0,y*zoom-diagramScroll.clientHeight/2));
+ const after=diagram.getBoundingClientRect();
+ if(before.width&&before.height){
+  diagramScroll.scrollLeft+=after.left+(x-before.left)*after.width/before.width-x;
+  diagramScroll.scrollTop+=after.top+(y-before.top)*after.height/before.height-y;
+ }
  drawControls();
 }
+let gestureZoom=null;
+diagramScroll.addEventListener('wheel',event=>{
+ if(!event.ctrlKey)return;
+ event.preventDefault();
+ if(gestureZoom!==null)return;
+ const delta=event.deltaY*(event.deltaMode===1?16:event.deltaMode===2?diagramScroll.clientHeight:1);
+ setZoom(zoom*Math.exp(-delta*.012),event);
+},{passive:false});
+diagramScroll.addEventListener('gesturestart',event=>{
+ event.preventDefault();
+ gestureZoom=zoom;
+},{passive:false});
+diagramScroll.addEventListener('gesturechange',event=>{
+ if(gestureZoom===null)return;
+ event.preventDefault();
+ setZoom(gestureZoom*event.scale,event);
+},{passive:false});
+diagramScroll.addEventListener('gestureend',event=>{
+ if(gestureZoom===null)return;
+ event.preventDefault();
+ gestureZoom=null;
+},{passive:false});
 el('zoom-out').onclick=()=>setZoom(zoom-25);
 el('zoom-in').onclick=()=>setZoom(zoom+25);
 el('zoom-reset').onclick=()=>setZoom(100);
