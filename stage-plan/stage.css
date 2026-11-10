@@ -233,3 +233,8 @@ h2 { font-size:16px; margin:0 0 12px; }
 @media screen and (hover:hover) {
  .equipment-item:hover .object-name { visibility:visible; }
 }
+
+.viewport-ruler { display:block; width:100%; height:25px; overflow:hidden; background:#fff; }
+.viewport-ruler[hidden] { display:none; }
+@media screen { #diagram-rulers { display:none; } }
+@media print { .viewport-ruler { display:none; } }

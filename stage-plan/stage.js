@@ -741,31 +741,65 @@ el('remove-item').onclick=()=>{
 };
 
 const KEN_CM=181.8;
+function rulerTicks(target,{origin,interval,left,right,width,baseline,direction,label}){
+ if(right<=left||interval<=0)return;
+ target.append(svg('line',{x1:left,y1:baseline,x2:right,y2:baseline,class:'ruler-tick'}));
+ const labelEvery=Math.max(1,Math.ceil(43/interval));
+ const subdivisions=interval>=40?4:interval>=14?2:1;
+ for(let index=Math.ceil((left-origin)/interval*subdivisions);index<=(right-origin)/interval*subdivisions;index++){
+  const value=index/subdivisions,x=origin+value*interval;
+  const major=index%subdivisions===0&&value%labelEvery===0;
+  target.append(svg('line',{x1:x,y1:baseline,x2:x,y2:baseline+direction*(major?7:4),class:'ruler-tick'}));
+  if(major){
+   const text=svg('text',{x:clamp(x,19,width-19),y:baseline+(direction<0?-11:20),class:'ruler-label'});
+   text.textContent=label(value);target.append(text);
+  }
+ }
+}
+const meterLabel=value=>value+' m';
+const kenLabel=value=>value===0?'0':Math.abs(value)+'間';
 function drawRulers(frame){
  const rulers=el('diagram-rulers');
  rulers.replaceChildren();
- if(!dimensions)return;
- function ruler({origin,unit,baseline,direction,label}){
-  const left=12,right=988;
-  rulers.append(svg('rect',{x:0,y:direction<0?0:625,width:1000,height:25,class:'ruler-strip'}));
-  rulers.append(svg('line',{x1:left,y1:baseline,x2:right,y2:baseline,class:'ruler-tick'}));
-  const interval=unit*frame.scale;
-  const labelEvery=Math.max(1,Math.ceil(43/interval));
-  const subdivisions=interval>=40?4:interval>=14?2:1;
-  for(let index=Math.ceil((left-origin)/interval*subdivisions);index<=(right-origin)/interval*subdivisions;index++){
-   const value=index/subdivisions,x=origin+value*interval;
-   const major=index%subdivisions===0&&value%labelEvery===0;
-   rulers.append(svg('line',{x1:x,y1:baseline,x2:x,y2:baseline+direction*(major?7:4),class:'ruler-tick'}));
-   if(major){
-    const text=svg('text',{x:clamp(x,19,981),y:direction<0?12:646,class:'ruler-label'});
-    text.textContent=label(value);
-    rulers.append(text);
-   }
+ if(dimensions){
+  for(const [origin,unit,y,baseline,direction,label] of [
+   [frame.x,100,0,23,-1,meterLabel],
+   [frame.x+frame.w/2,KEN_CM,625,626,1,kenLabel],
+  ]){
+   rulers.append(svg('rect',{x:0,y,width:1000,height:25,class:'ruler-strip'}));
+   rulerTicks(rulers,{origin,interval:unit*frame.scale,left:12,right:988,width:1000,baseline,direction,label});
   }
  }
- ruler({origin:frame.x,unit:100,baseline:23,direction:-1,label:value=>value+' m'});
- ruler({origin:frame.x+frame.w/2,unit:KEN_CM,baseline:626,direction:1,label:value=>value===0?'0':Math.abs(value)+'間'});
+ scheduleViewportRulers();
 }
+
+let rulerFrame=0;
+function scheduleViewportRulers(){
+ if(rulerFrame)return;
+ rulerFrame=requestAnimationFrame(()=>{
+  rulerFrame=0;
+  const diagramRect=diagram.getBoundingClientRect(),frame=geometry();
+  const scale=diagramRect.width/1000;
+  for(const [id,origin,unit,baseline,direction,label] of [
+   ['meter-ruler',frame.x,100,23,-1,meterLabel],
+   ['ken-ruler',frame.x+frame.w/2,KEN_CM,1,1,kenLabel],
+  ]){
+   const bar=el(id);
+   bar.toggleAttribute('hidden',!dimensions);
+   bar.replaceChildren();
+   if(!dimensions||!scale)continue;
+   const rect=bar.getBoundingClientRect(),width=Math.min(rect.width,diagramScroll.clientWidth);
+   const offset=diagramRect.left-rect.left;
+   rulerTicks(bar,{origin:offset+origin*scale,interval:unit*frame.scale*scale,
+    left:Math.max(0,offset),right:Math.min(width,offset+diagramRect.width),
+    width,baseline,direction,label});
+  }
+ });
+}
+diagramScroll.addEventListener('scroll',scheduleViewportRulers,{passive:true});
+const rulerObserver=new ResizeObserver(scheduleViewportRulers);
+rulerObserver.observe(diagram);
+rulerObserver.observe(diagramScroll);
 function drawStage(){
  const image=el('diagram-background'),asset=assets.find(item=>item.id===background);
  image.toggleAttribute('hidden',!asset);
