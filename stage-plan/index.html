@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="../assets/official-theme.css?v=1">
 <link rel="stylesheet" href="../assets/astryx-ui.css?v=2">
 <link rel="stylesheet" href="stage.css?v=rotation-angle-1">
-<script type="module" src="stage.js?v=two-finger-undo-1"></script>
+<script type="module" src="stage.js?v=resume-loading-1"></script>
 </head>
 <body>
 <header><span class="header-title">ステージ図面</span><a class="header-brand app-home" href="https://app.urakatabu.com/">アプリ一覧</a><urakata-account></urakata-account></header>
@@ -23,6 +23,7 @@
 <button id="retry-session" type="button" hidden>接続を再試行</button>
 </section>
 <main id="workspace" hidden>
+<p id="plan-loading" class="panel" role="status" hidden></p>
 <section id="plan-welcome" class="panel" hidden><h1>ステージ図面</h1><p>ステージタイプを選んで、新しい図面を作成します。</p><button id="welcome-new" class="primary" type="button">ステージタイプを選ぶ</button> <button id="welcome-open" type="button">保存した図面を開く</button></section>
 <div id="plan-editor" hidden>
 <div class="plan-bar panel">

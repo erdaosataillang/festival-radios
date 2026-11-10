@@ -1612,25 +1612,27 @@ setupSession(async profile=>{
   const history=JSON.parse(localStorage.getItem(recentObjectsKey)||'[]');
   if(Array.isArray(history))recentObjects=[...new Set(history.filter(kind=>typeof kind==='string'))].slice(0,recentLimit);
  }catch{}
+ let last=null;
+ try{if(lastPlanKey)last=localStorage.getItem(lastPlanKey);}catch{}
+ const resume=/^[A-Za-z0-9]{20}$/.test(last||'');
+ const loading=el('plan-loading'),welcome=el('plan-welcome');
+ welcome.hidden=true;
+ loading.textContent=resume?'前回の図面を読み込んでいます…':'図面を開く準備をしています…';
+ loading.hidden=false;
  el('workspace').hidden=false;
- el('plan-welcome').hidden=false;
  try{
   await loadCatalog();
-  let last=null;
-  try{if(lastPlanKey)last=localStorage.getItem(lastPlanKey);}catch{}
-  if(/^[A-Za-z0-9]{20}$/.test(last||'')){
+  if(resume){
    try{loadPlan(await api('/stage/plans/'+last));return;}
    catch(error){
     if(error.status===404)try{localStorage.removeItem(lastPlanKey);}catch{}
    }
   }
+  welcome.hidden=false;
   typePicker.showModal();
- }
- catch(error){
-  const message=document.createElement('p');
-  message.setAttribute('role','alert');
-  message.textContent='機材一覧を読み込めませんでした。ページを再読み込みしてください。';
-  el('plan-welcome').append(message);
-  el('welcome-new').disabled=el('welcome-open').disabled=true;
+ }catch{
+  loading.textContent='機材一覧を読み込めませんでした。ページを再読み込みしてください。';
+ }finally{
+  if(!el('plan-editor').hidden||!welcome.hidden)loading.hidden=true;
  }
 },()=>dirty);
