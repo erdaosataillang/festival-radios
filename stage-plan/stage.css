@@ -154,3 +154,42 @@ h2 { font-size:16px; margin:0 0 12px; }
  .diagram-panel { grid-row:3; }
 }
 @media print { .tool-rail { display:none!important; } }
+@media screen {
+ .official-ui body.authenticated { background:#f1f2f5; }
+ .official-ui body.authenticated>header {
+  min-height:56px; height:auto; padding-block:6px;
+  background:linear-gradient(105deg,#075f85,#5741a2 58%,#6c36b0);
+  border-bottom:0;
+ }
+ .official-ui body.authenticated main { max-width:1800px; padding:12px clamp(12px,2vw,26px) 32px; }
+ .plan-bar { padding:9px 12px; align-items:center; }
+ .plan-bar label { max-width:320px; }
+ .plan-bar label input { padding:6px 9px; }
+ .plan-status { margin:5px 0 10px; color:#4b5563; }
+ .plan-layout { gap:10px; }
+ .tool-rail,.equipment-panel { position:sticky; top:12px; max-height:calc(100dvh - 24px); overflow:auto; }
+ .tool-rail button { min-height:58px; }
+ .equipment-panel { padding:12px; }
+ .diagram-panel { padding:0; overflow:hidden; }
+ .diagram-heading { padding:8px 12px; margin:0; }
+ .diagram-tools button,.object-bar button,.canvas-footer button { min-height:34px; font-size:12px; padding:5px 9px; }
+ .object-bar { min-height:46px; padding:5px 12px; display:flex; align-items:center; border-block:1px solid #e3e5eb; background:white; }
+ #canvas-hint { color:#596174; font-size:12px; margin:0; }
+ #object-actions { display:flex; align-items:center; gap:6px; min-width:0; }
+ #selected-object-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; margin-inline-end:6px; }
+ #object-actions button { white-space:nowrap; }
+ #diagram-scroll { background:#e6e8ee; padding:clamp(8px,2vw,24px); border:0; border-radius:0; }
+ #diagram-scroll #diagram { background:white; box-shadow:0 2px 14px #1d253319; }
+ #diagram-scroll.pan-ready :is(#diagram,.equipment-item,.object-grip-target) { cursor:grab; }
+ #diagram-scroll.panning :is(#diagram,.equipment-item,.object-grip-target) { cursor:grabbing; }
+ .canvas-footer { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 12px; border-bottom:1px solid #e3e5eb; }
+ .canvas-footer span { color:#596174; font-size:11px; }
+ .equipment-schedule,.diagram-panel>.hint { margin:10px 12px; }
+ @media(max-width:900px) {
+  .tool-rail,.equipment-panel { position:static; max-height:none; }
+  .plan-bar { align-items:stretch; }
+  .canvas-footer span { display:none; }
+  .canvas-footer { justify-content:flex-end; }
+ }
+}
+@media print { .object-bar,.canvas-footer { display:none!important; } }

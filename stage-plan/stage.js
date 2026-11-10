@@ -77,6 +77,8 @@ function changed(){
   if(drag)drag.undoRecorded=true;
  }
  previous=snapshot();
+ el('undo-edit').disabled=!undoStack.length;
+ el('redo-edit').disabled=!redoStack.length;
  dirty=true;
  status('変更を自動保存します…');
  scheduleSave();
@@ -176,7 +178,12 @@ function poseItem(group,item){
 function drawControls(){
  objectControls.replaceChildren();
  const item=selected();
+ el('object-actions').hidden=!item;
+ el('canvas-hint').hidden=!!item;
+ el('undo-edit').disabled=!undoStack.length;
+ el('redo-edit').disabled=!redoStack.length;
  if(!item)return;
+ el('selected-object-name').textContent=item.name||toolFor(item.assetId||item.kind).label;
  const {width,height}=symbolDimensions(item);
  const x=width/2,y=height/2;
  const scale=diagram.getScreenCTM()?.a||1;
@@ -285,7 +292,7 @@ el('equipment-category').onchange=renderPalette;
 el('equipment-search').oninput=renderPalette;
 
 diagram.addEventListener('pointerdown',event=>{
- if(event.button!==0||drag||lineDraft)return;
+ if(event.button!==0||drag||lineDraft||spaceDown)return;
  if(placing==='annotation-line'){
   event.preventDefault();
   const start=point(event);
@@ -410,7 +417,49 @@ document.addEventListener('keydown',event=>{
   }
  }
 });
+el('undo-edit').onclick=()=>restoreChange(undoStack,redoStack);
+el('redo-edit').onclick=()=>restoreChange(redoStack,undoStack);
+el('quick-duplicate').onclick=duplicateSelected;
+function editSelected(){
+ const item=selected();if(!item)return;
+ showToolPanel('properties');
+ if(item.kind==='annotation-line')el('item-angle').focus();
+ else{el('item-name').focus();el('item-name').select();}
+}
+el('quick-properties').onclick=editSelected;
+el('quick-menu').onclick=()=>{
+ const button=el('quick-menu'),box=button.getBoundingClientRect();
+ showObjectMenu(box.left,box.bottom+4,button);
+};
+diagram.addEventListener('dblclick',event=>{
+ if(!placing&&event.target.closest('[data-item]'))editSelected();
+});
+let spaceDown=false,pan=null;
+const editableTarget=target=>target.closest?.('input,textarea,select,button,[contenteditable]');
+document.addEventListener('keydown',event=>{
+ if(event.code!=='Space'||editableTarget(event.target)||el('plan-editor').hidden||document.querySelector('dialog[open]'))return;
+ if(event.target.closest?.('[data-item]'))return;
+ event.preventDefault();spaceDown=true;diagramScroll.classList.add('pan-ready');
+});
+function stopPanning(){spaceDown=false;pan=null;diagramScroll.classList.remove('pan-ready','panning');}
+document.addEventListener('keyup',event=>{if(event.code==='Space')stopPanning();});
+window.addEventListener('blur',stopPanning);
 const diagramScroll=el('diagram-scroll');
+diagramScroll.addEventListener('pointerdown',event=>{
+ if(!spaceDown||event.button!==0)return;
+ event.preventDefault();
+ pan={id:event.pointerId,x:event.clientX,y:event.clientY,left:diagramScroll.scrollLeft,top:diagramScroll.scrollTop};
+ diagramScroll.classList.add('panning');
+ diagramScroll.setPointerCapture(event.pointerId);
+},true);
+diagramScroll.addEventListener('pointermove',event=>{
+ if(pan?.id!==event.pointerId)return;
+ diagramScroll.scrollLeft=pan.left+pan.x-event.clientX;
+ diagramScroll.scrollTop=pan.top+pan.y-event.clientY;
+});
+diagramScroll.addEventListener('lostpointercapture',()=>{
+ pan=null;diagramScroll.classList.remove('panning');
+});
 let zoom=100;
 function setZoom(value){
  const previous=zoom;
@@ -697,11 +746,7 @@ objectMenu.addEventListener('click',event=>{
  if(action==='reset'){setZoom(100);return;}
  const item=selected();
  if(!item)return;
- if(action==='properties'){
-  showToolPanel('properties');
-  if(item.kind==='annotation-line')el('item-angle').focus();
-  else{el('item-name').focus();el('item-name').select();}
- }else if(action==='duplicate')duplicateSelected();
+ if(action==='properties')editSelected();else if(action==='duplicate')duplicateSelected();
  else if(action==='delete')el('remove-item').click();
  else{
   if(action==='rotate')item.angle=(item.angle+90)%360;
