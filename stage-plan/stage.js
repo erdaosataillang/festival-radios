@@ -331,6 +331,69 @@ function snapPosition(pos){
  const snapped=positionSvg(cm.x,cm.y,frame);
  return {x:worldCoordinate(snapped.x),y:worldCoordinate(snapped.y)};
 }
+function alignmentBox(item,x=item.x,y=item.y){
+ const {width,height}=symbolDimensions(item);
+ const corner=rotateVector(1,0,item.angle);
+ const halfX=(Math.abs(corner.x)*width+Math.abs(corner.y)*height)/2;
+ const halfY=(Math.abs(corner.y)*width+Math.abs(corner.x)*height)/2;
+ return {left:x-halfX,right:x+halfX,top:y-halfY,bottom:y+halfY};
+}
+function alignmentTarget(moving,others,axis,tolerance){
+ const horizontal=axis==='x';
+ const [start,end,near,far]=horizontal?['left','right','top','bottom']:['top','bottom','left','right'];
+ const mid=(moving[start]+moving[end])/2,size=moving[end]-moving[start];
+ const cross=(moving[near]+moving[far])/2;
+ const frame=geometry();
+ let best={delta:0,guides:[]},distance=tolerance;
+ function consider(delta,guides){
+  if(Math.abs(delta)>=distance)return;
+  best={delta,guides};distance=Math.abs(delta);
+ }
+ function align(coordinate,anchor,from,to){
+  consider(coordinate-anchor,[[coordinate,from,coordinate,to]]);
+ }
+ align(horizontal?frame.x+frame.w/2:frame.y+frame.h/2,mid,
+  Math.min(horizontal?frame.y:frame.x,moving[near]),Math.max(horizontal?frame.y+frame.h:frame.x+frame.w,moving[far]));
+ const lane=others.filter(box=>box[near]<moving[far]+tolerance&&box[far]>moving[near]-tolerance)
+  .sort((a,b)=>a[start]-b[start]);
+ for(let i=1;i<lane.length;i++){
+  const a=lane[i-1],b=lane[i],gap=b[start]-a[end];
+  if(gap<=0)continue;
+  const existing=[a[end],cross,b[start],cross];
+  consider(b[end]+gap-moving[start],[existing,[b[end],cross,b[end]+gap,cross]]);
+  consider(a[start]-gap-moving[end],[existing,[a[start]-gap,cross,a[start],cross]]);
+  if(gap>size){
+   const spacing=(gap-size)/2;
+   consider(a[end]+spacing-moving[start],[[a[end],cross,a[end]+spacing,cross],[b[start]-spacing,cross,b[start],cross]]);
+  }
+ }
+ for(const box of others){
+  const from=Math.min(box[near],moving[near]),to=Math.max(box[far],moving[far]);
+  align((box[start]+box[end])/2,mid,from,to);
+  align(box[start],moving[start],from,to);
+  align(box[end],moving[end],from,to);
+ }
+ return best;
+}
+function magneticOffset(members,dx,dy,disabled){
+ const guides=el('snap-guides');guides.replaceChildren();
+ const scale=Math.abs(diagram.getScreenCTM()?.a||0);
+ if(disabled||!scale)return {dx,dy};
+ const moving=members.map(({entry,x,y})=>alignmentBox(entry,x+dx,y+dy));
+ const bounds={left:Math.min(...moving.map(b=>b.left)),right:Math.max(...moving.map(b=>b.right)),
+  top:Math.min(...moving.map(b=>b.top)),bottom:Math.max(...moving.map(b=>b.bottom))};
+ const excluded=new Set(members.map(({entry})=>entry));
+ const others=items.filter(item=>!excluded.has(item)&&visible(item)).map(item=>alignmentBox(item));
+ for(const axis of ['x','y']){
+  const {delta,guides:lines}=alignmentTarget(bounds,others,axis,8/scale);
+  if(axis==='x')dx+=delta;else dy+=delta;
+  for(const line of lines){
+   const [x1,y1,x2,y2]=axis==='x'?line:[line[1],line[0],line[3],line[2]];
+   guides.append(svg('line',{x1,y1,x2,y2}));
+  }
+ }
+ return {dx,dy};
+}
 function addItem(position){
  if(items.length>=200){status('1つの図面に配置できる機材は200件までです。');return;}
  const tool=toolFor(placing);
@@ -587,8 +650,9 @@ diagram.addEventListener('pointermove',event=>{
   if(inWorld({x,y}))Object.assign(item,{size,x,y});
  }else{
   const target=snapPosition({x:drag.x+end.x-drag.start.x,y:drag.y+end.y-drag.start.y});
-  const dx=clamp(target.x-drag.x,Math.max(...drag.members.map(m=>-WORLD_LIMIT-m.x)),Math.min(...drag.members.map(m=>WORLD_LIMIT-m.x)));
-  const dy=clamp(target.y-drag.y,Math.max(...drag.members.map(m=>-WORLD_LIMIT-m.y)),Math.min(...drag.members.map(m=>WORLD_LIMIT-m.y)));
+  const magnetic=magneticOffset(drag.members,target.x-drag.x,target.y-drag.y,event.altKey);
+  const dx=clamp(magnetic.dx,Math.max(...drag.members.map(m=>-WORLD_LIMIT-m.x)),Math.min(...drag.members.map(m=>WORLD_LIMIT-m.x)));
+  const dy=clamp(magnetic.dy,Math.max(...drag.members.map(m=>-WORLD_LIMIT-m.y)),Math.min(...drag.members.map(m=>WORLD_LIMIT-m.y)));
   for(const {entry,x,y} of drag.members){
    Object.assign(entry,{x:x+dx,y:y+dy});
    const node=equipment.querySelector('[data-item="'+entry.id+'"]');
@@ -627,7 +691,7 @@ diagram.addEventListener('pointerup',event=>{
  if(previousTap?.item===item&&event.timeStamp-previousTap.time<450)editText(item);
 });
 diagram.addEventListener('lostpointercapture',()=>{
- drag=null;updateInspector();scheduleSave();scheduleFloatingActions();
+ drag=null;el('snap-guides').replaceChildren();updateInspector();scheduleSave();scheduleFloatingActions();
 });
 diagram.addEventListener('keydown',event=>{
  const node=event.target.closest('[data-item]');

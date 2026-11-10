@@ -10,8 +10,8 @@
 <link rel="stylesheet" href="../assets/auth-gate.css?v=1">
 <link rel="stylesheet" href="../assets/official-theme.css?v=1">
 <link rel="stylesheet" href="../assets/astryx-ui.css?v=2">
-<link rel="stylesheet" href="stage.css?v=object-previews-1">
-<script type="module" src="stage.js?v=object-previews-1"></script>
+<link rel="stylesheet" href="stage.css?v=magnetic-guides-1">
+<script type="module" src="stage.js?v=magnetic-guides-1"></script>
 </head>
 <body>
 <header><span class="header-title">ステージ図面</span><a class="header-brand app-home" href="https://app.urakatabu.com/">アプリ一覧</a><urakata-account></urakata-account></header>
@@ -116,7 +116,7 @@
    <text id="stage-rear" x="500" y="119" class="diagram-label">ステージ奥</text>
    <text id="stage-front" x="500" y="397" class="diagram-label">ステージ前</text>
    <text id="stage-audience" x="500" y="580" class="diagram-label">客席側</text>
-   <g id="center-line" aria-hidden="true"><line x1="500" y1="35" x2="500" y2="600" stroke="#56606b" stroke-dasharray="14 6 2 6"/><text x="500" y="620" class="diagram-label">CL</text></g><g id="dimension-lines" aria-hidden="true"></g><g id="curtain-lines"></g><g id="equipment"></g><g id="line-draft" aria-hidden="true"></g><g id="object-controls" aria-hidden="true"></g><g id="diagram-rulers" aria-label="図面のルーラー"></g>
+   <g id="center-line" aria-hidden="true"><line x1="500" y1="35" x2="500" y2="600" stroke="#56606b" stroke-dasharray="14 6 2 6"/><text x="500" y="620" class="diagram-label">CL</text></g><g id="dimension-lines" aria-hidden="true"></g><g id="curtain-lines"></g><g id="snap-guides" aria-hidden="true"></g><g id="equipment"></g><g id="line-draft" aria-hidden="true"></g><g id="object-controls" aria-hidden="true"></g><g id="diagram-rulers" aria-label="図面のルーラー"></g>
   </svg></div>
   <svg id="ken-ruler" class="viewport-ruler" aria-label="中央からの間目盛り"></svg>
   <div id="floating-actions" role="group" aria-label="選択項目の操作" hidden>
@@ -128,7 +128,7 @@
    <button id="quick-menu" type="button" aria-label="その他の操作" title="その他の操作" aria-haspopup="menu"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button>
   </div>
   </div>
-  <div class="canvas-footer"><span>スペースキーを押しながらドラッグで移動</span><div class="zoom-controls" aria-label="図面の拡大・縮小"><button id="zoom-out" type="button" aria-label="縮小">−</button><button id="zoom-reset" type="button" aria-label="100%に戻す">100%</button><button id="zoom-in" type="button" aria-label="拡大">＋</button></div></div>
+  <div class="canvas-footer"><span>スペースキーで図面を移動 · Optionキーで吸着を一時解除</span><div class="zoom-controls" aria-label="図面の拡大・縮小"><button id="zoom-out" type="button" aria-label="縮小">−</button><button id="zoom-reset" type="button" aria-label="100%に戻す">100%</button><button id="zoom-in" type="button" aria-label="拡大">＋</button></div></div>
   <section class="equipment-schedule" aria-labelledby="schedule-title"><h2 id="schedule-title">機材表</h2><div id="schedule-tables"></div></section>
   <p class="hint">オブジェクトをドラッグして移動。四隅でサイズ変更、下のハンドルで回転できます。</p>
   <details class="hint"><summary>ショートカットキー</summary>

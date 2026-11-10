@@ -273,3 +273,7 @@ h2 { font-size:16px; margin:0 0 12px; }
 #floating-actions #float-group { width:auto; padding-inline:12px; border-radius:20px; white-space:nowrap; }
 
 #palette button > svg { flex:none; width:48px; height:42px; }
+
+#snap-guides { pointer-events:none; }
+#snap-guides line { stroke:#a21caf; stroke-width:1.5; stroke-dasharray:5 3; vector-effect:non-scaling-stroke; }
+@media print { #snap-guides { display:none; } }
