@@ -127,3 +127,27 @@ test('ステージ図面の更新は本人の図面に限定し、競合時に�
  assert.equal((await setup({claims:null}).call('/stage/plans')).code,401);
  assert.equal((await setup({user:{name:'確認',stagePlanAccess:false}}).call('/stage/plans')).code,403);
 });
+
+test('図面の共有リンクは閲覧・編集を分け、所有者が無効化できる',async()=>{
+ const claims={uid:'user1',line:true,registered:true,auth_time:1000};
+ const s=setup({claims}),id='s'.repeat(20),own='/stage/plans/'+id;
+ const plan={title:'共有図面',items:[]};
+ s.rows.set('stagePlanUsers/user1/plans/'+id,{...plan,version:1});
+ const view=(await s.call(own+'/links',{role:'view',action:'create'})).body.links.view;
+ const edit=(await s.call(own+'/links',{role:'edit',action:'create'})).body.links.edit;
+ assert.match(view,/^[a-f0-9]{64}$/);
+ assert.notEqual(edit,view);
+ claims.uid='user2';
+ const shared=token=>'/stage/shared/'+token;
+ assert.equal((await s.call(own+'/links')).code,404);
+ assert.equal((await s.call(shared(view))).body.access,'view');
+ assert.equal((await s.call(shared(view),{plan,version:1})).code,403);
+ assert.equal((await s.call(shared(edit),{plan:{...plan,title:'共同編集済み'},version:1})).body.version,2);
+ assert.equal((await s.call(shared(edit),{plan,version:1})).code,409);
+ assert.equal((await s.call(shared(view))).body.title,'共同編集済み');
+ claims.uid='user1';
+ assert.equal((await s.call(own+'/links',{role:'edit',action:'revoke'})).code,200);
+ claims.uid='user2';
+ assert.equal((await s.call(shared(edit))).code,404);
+ assert.equal((await s.call(shared(view))).code,200);
+});

@@ -10,8 +10,8 @@
 <link rel="stylesheet" href="../assets/auth-gate.css?v=1">
 <link rel="stylesheet" href="../assets/official-theme.css?v=1">
 <link rel="stylesheet" href="../assets/astryx-ui.css?v=2">
-<link rel="stylesheet" href="stage.css?v=color-palette-1">
-<script type="module" src="stage.js?v=color-palette-1"></script>
+<link rel="stylesheet" href="stage.css?v=canva-share-1">
+<script type="module" src="stage.js?v=canva-share-1"></script>
 </head>
 <body>
 <header><span class="header-title">ステージ図面</span><a class="header-brand app-home" href="https://app.urakatabu.com/">アプリ一覧</a><urakata-account></urakata-account></header>
@@ -31,7 +31,7 @@
  <div class="plan-actions"><button id="undo-edit" type="button" aria-label="元に戻す" title="元に戻す">↶</button><button id="redo-edit" type="button" aria-label="やり直す" title="やり直す">↷</button>
   <button id="new-plan" type="button">新規</button>
   <button id="open-list" type="button">保存した図面</button>
-  <button id="print-plan" type="button">印刷・PDF</button><button id="save-plan" class="primary" type="button">今すぐ保存</button>
+  <button id="open-share" type="button">共有</button><a id="back-to-plans" href="./" hidden>自分の図面へ</a><button id="print-plan" type="button">印刷・PDF</button><button id="save-plan" class="primary" type="button">今すぐ保存</button>
  </div>
 </div>
 <p id="plan-status" class="plan-status" role="status">変更はサーバーに自動保存されます。</p>
@@ -98,12 +98,18 @@
 <div class="object-bar" aria-label="選択項目の操作">
   <div id="object-actions" role="group" aria-label="オブジェクトの編集">
    <button id="quick-properties" type="button">編集</button>
+   <span class="toolbar-divider" aria-hidden="true"></span>
    <button id="quick-replace" type="button">置き換え</button>
-   <button id="quick-color" type="button" aria-haspopup="dialog"><span class="current-color" aria-hidden="true"></span>色</button>
-   <label class="toolbar-field" data-unlocked>透明度 <input id="quick-opacity" type="range" min="10" max="100" value="100" aria-label="透明度"></label>
-   <button id="quick-flip" type="button" aria-pressed="false">左右反転</button>
+   <button id="quick-color" type="button" aria-haspopup="dialog" aria-label="色" title="色"><span class="current-color" aria-hidden="true"></span></button>
+   <button id="open-stroke" type="button" aria-label="線の太さ" title="線の太さ"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18M3 11h18M3 18h18" stroke-linecap="round"/><path d="M3 18h18" stroke-width="4"/></svg></button>
+   <button id="open-corner" type="button" aria-label="角の丸み" title="角の丸み"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20A16 16 0 0 1 20 4"/></svg></button>
+   <button id="open-crop" type="button" aria-label="切り抜き" title="切り抜き"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2v15h15M2 7h15v15"/></svg></button>
+   <button id="quick-flip" type="button" aria-pressed="false">反転</button>
+   <button id="open-opacity" type="button" aria-label="透明度" title="透明度"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h4v4H3zM11 3h4v4h-4zM7 7h4v4H7zM15 7h4v4h-4zM3 11h4v4H3zM11 11h4v4h-4zM7 15h4v4H7zM15 15h4v4h-4z" fill="currentColor" stroke="none"/></svg></button>
+   <button id="open-animation" type="button">アニメーション</button>
    <button id="quick-position" type="button">配置</button>
-
+   <span class="toolbar-divider" aria-hidden="true"></span>
+   <button id="open-style" type="button" aria-label="スタイル" title="スタイル"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="14" height="5" rx="2"/><path d="M17 6h3v6h-8v3m-2 0h4v6h-4z"/></svg> スタイル</button>
   </div>
 </div>
 <h1 id="print-title"></h1>
@@ -138,6 +144,23 @@
  </section>
 </div>
 </div></main>
+<dialog id="object-appearance" aria-labelledby="appearance-title">
+ <header class="color-heading"><h2 id="appearance-title"></h2><button id="close-appearance" type="button" aria-label="閉じる">×</button></header>
+ <div id="appearance-adjust"><input id="appearance-range" type="range"><output id="appearance-value" for="appearance-range"></output></div>
+ <div id="appearance-animation" class="share-actions" hidden><button id="preview-fade" type="button">フェード</button><button id="preview-pop" type="button">ポップ</button></div>
+ <div id="appearance-style" class="share-actions" hidden><button id="reset-style" type="button">スタイルをリセット</button></div>
+</dialog>
+<dialog id="share-plan" aria-labelledby="share-title">
+ <header class="color-heading"><h2 id="share-title">図面を共有</h2><button id="close-share" type="button" aria-label="閉じる">×</button></header>
+ <section id="share-links">
+  <h3>リンク共有</h3><p class="hint">リンクを受け取った人は裏方アカウントでログインして開きます。</p>
+  <label for="share-role">アクセス権</label><select id="share-role"><option value="view">閲覧のみ</option><option value="edit">共同編集</option></select>
+  <div class="share-actions"><button id="create-share-link" type="button">リンクを作成</button><button id="revoke-share-link" type="button" hidden>リンクを無効にする</button></div>
+  <div id="share-link-output" hidden><input id="share-url" readonly aria-label="共有リンク"><div class="share-actions"><button id="copy-share-url" type="button">コピー</button><button id="send-share-url" type="button">リンクを共有</button></div></div>
+ </section>
+ <section><h3>PDF共有</h3><div class="share-actions"><button id="prepare-share-pdf" type="button">PDFを作成</button><button id="send-share-pdf" type="button" hidden>PDFを共有</button><button id="download-share-pdf" type="button" hidden>PDFを保存</button></div></section>
+ <p id="share-status" role="status" class="hint"></p>
+</dialog>
 <dialog id="object-colors" aria-labelledby="color-title">
  <header class="color-heading"><h2 id="color-title">オブジェクトの色</h2><button id="close-colors" type="button" aria-label="閉じる">×</button></header>
  <input id="color-search" type="search" aria-label="色を検索" placeholder="「青」または「#00c4cc」を検索">

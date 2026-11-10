@@ -33,7 +33,7 @@ async function login(){
   const state=encode(crypto.getRandomValues(new Uint8Array(24)));
   const verifier=encode(crypto.getRandomValues(new Uint8Array(48)));
   const challenge=encode(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier)));
-  sessionStorage.setItem(storageKey,JSON.stringify({state,verifier,at:Date.now()}));
+  sessionStorage.setItem(storageKey,JSON.stringify({state,verifier,at:Date.now(),share:location.hash}));
   const url=new URL(authorize);
   url.search=new URLSearchParams({response_type:'code',client_id:hosted?'stage-hosted':'stage',redirect_uri:redirect,state,code_challenge:challenge,code_challenge_method:'S256'});
   location.assign(url);
@@ -62,6 +62,7 @@ export function setupSession(onReady,hasChanges){
     sessionStorage.removeItem(storageKey);
     if(!saved||saved.state!==params.get('state')||Date.now()-saved.at>600000)
      throw new Error('ログインの有効期限が切れました。もう一度ログインしてください。');
+    if(/^#share=[a-f0-9]{64}$/.test(saved.share||''))history.replaceState(null,'',location.pathname+saved.share);
     const {customToken}=await api('/auth/exchange',{code:params.get('auth_code'),codeVerifier:saved.verifier,redirectUri:redirect});
     await sdk.signInWithCustomToken(auth,customToken);
    }

@@ -296,3 +296,26 @@ h2 { font-size:16px; margin:0 0 12px; }
 .custom-color-fields { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
 #color-picker { width:42px; height:40px; padding:2px; }
 #color-hex { width:95px; min-width:0; }
+
+#share-plan { width:min(410px,calc(100vw - 28px)); max-height:calc(100dvh - 32px); overflow:auto; }
+#share-plan section { margin-block:14px; }
+#share-plan h3 { margin:0 0 6px; font-size:15px; }
+.share-actions { display:flex; flex-wrap:wrap; gap:8px; margin-block:8px; }
+#share-url { width:100%; }
+#plan-editor[data-access] :is(#new-plan,#open-list) { display:none; }
+#plan-editor[data-access="view"] :is(.tool-rail,.equipment-panel,.object-bar,#undo-edit,#redo-edit,#save-plan,#import-background,#remove-background) { display:none; }
+#plan-editor[data-access="view"] .plan-layout { display:block; }
+#plan-editor[data-access="view"] .equipment-item { cursor:default; }
+
+.object-bar { justify-content:center; border:0; padding:10px 12px; }
+#object-actions:not([hidden]) { gap:6px; padding:7px 12px; border-radius:24px; box-shadow:0 4px 12px #1d25331a; }
+#object-actions button { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:36px; padding:4px 7px; border:0; background:transparent; font-size:14px; font-weight:650; }
+#object-actions button:hover:not(:disabled) { background:#f0eff5; }
+#object-actions button:disabled { opacity:.4; }
+#object-actions svg { width:23px; height:23px; stroke:currentColor; fill:none; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
+#object-actions .current-color { width:26px; height:26px; }
+.toolbar-divider { height:22px; width:2px; margin-inline:2px; border-radius:2px; background:#e0e2e8; }
+#object-appearance { width:min(320px,calc(100vw - 28px)); }
+#appearance-adjust:not([hidden]) { display:flex; align-items:center; gap:12px; }
+#appearance-range { flex:1; min-width:0; }
+#appearance-value { min-width:42px; text-align:end; }

@@ -1,4 +1,5 @@
-import {api,setupSession} from './session.js?v=rulers-drop-resume-1';
+import {api,setupSession} from './session.js?v=diagram-share-1';
+import {diagramPdf} from './diagram-pdf.js?v=1';
 import {equipmentShape} from './equipment-symbols.js?v=4';
 
 const stageTypes={
@@ -60,11 +61,13 @@ const equipment=el('equipment');
 const status=message=>{el('plan-status').textContent=message;};
 const clamp=(value,min,max)=>Math.min(max,Math.max(min,value));
 let items=[],id=null,version=null,selectedId=null,placing=null,drag=null;
+const sharedToken=()=>location.hash.match(/^#share=([a-f0-9]{64})$/)?.[1];
+let sharedAccess=null;
 let dirty=false,saving=null,opening=false,saveTimer,lastPlanKey;
 let recentObjects=[],recentObjectsKey=null;
 const recentLimit=20;
 function rememberPlan(){
- if(!lastPlanKey||!id)return;
+ if(!lastPlanKey||!id||sharedAccess)return;
  try{localStorage.setItem(lastPlanKey,id);}catch{}
 }
 let previous,undoStack=[],redoStack=[];
@@ -249,15 +252,18 @@ function drawControls(){
  const lock=el('quick-lock'),lockLabel=fixed?'ロック解除':'ロック';
  lock.setAttribute('aria-pressed',String(fixed));
  lock.setAttribute('aria-label',lockLabel);lock.title=lockLabel;
- for(const id of ['quick-properties','quick-position','quick-color','quick-opacity','quick-menu','float-edit','float-delete'])
+ for(const id of ['quick-properties','quick-position','quick-color','open-opacity','open-animation','open-style','quick-menu','float-edit','float-delete'])
   el(id).disabled=unavailable;
  el('quick-duplicate').disabled=!layerSelection().length||layerSelection().some(locked);
  el('quick-replace').disabled=unavailable||isAnnotation(item)||isRigging(item);
  el('quick-flip').disabled=unavailable||isAnnotation(item)||isRigging(item);
  el('quick-flip').setAttribute('aria-pressed',String(!!item?.flipX));
+ el('open-stroke').disabled=el('open-corner').disabled=el('open-crop').disabled=unavailable;
  if(!item)return;
  el('quick-color').style.setProperty('--swatch',objectColor(item));
- el('quick-opacity').value=item.opacity??100;
+ el('open-stroke').disabled=fixed||!(item.kind==='annotation-line'||isRigging(item));
+ const image=toolFor(item.assetId||item.kind);
+ el('open-corner').disabled=el('open-crop').disabled=fixed||!(image.asset||image.source);
  if(fixed)return;
  const {width,height}=symbolDimensions(item);
  const x=width/2,y=height/2;
@@ -298,6 +304,14 @@ function draw(){
   const symbol=svg('g',{opacity:(item.opacity??100)/100,transform:item.flipX?'scale(-1 1)':'scale(1)'});
   if(imported){
    const image=svg('image',{x:-45,y:-height/2,width:90,height});
+   if(item.crop||item.cornerRadius){
+    const clipId='object-clip-'+item.id;
+    const clip=svg('clipPath',{id:clipId});
+    const crop=(item.crop??0)/100;
+    clip.append(svg('rect',{x:-45+90*crop,y:-height/2+height*crop,width:90*(1-2*crop),height:height*(1-2*crop),rx:item.cornerRadius??0}));
+    body.append(clip);
+    symbol.setAttribute('clip-path','url(#'+clipId+')');
+   }
    if(item.color){
     const maskId='object-color-'+item.id;
     const mask=svg('mask',{id:maskId,style:'mask-type:alpha',maskUnits:'userSpaceOnUse',x:-45,y:-height/2,width:90,height});
@@ -317,6 +331,7 @@ function draw(){
    });
    symbol.append(text);
   }else symbol.innerHTML=tool.shape;
+  if(item.strokeWeight)for(const line of symbol.querySelectorAll('line,path'))line.setAttribute('stroke-width',item.strokeWeight);
   const label=svg('text',{class:isRigging(item)?'rigging-name':'object-name','pointer-events':isRigging(item)?'bounding-box':'none'});
   label.textContent=isRigging(item)?item.name:isAnnotation(item)?'':item.name||tool.label;
   body.append(symbol);group.append(body,label);equipment.append(group);
@@ -606,6 +621,7 @@ function placeOnDiagram(event){
  addItem(point(event));
 }
 diagram.addEventListener('pointerdown',event=>{
+ if(sharedAccess==='view')return;
  if(event.button!==0||!event.isPrimary||drag||spaceDown||event.target.closest('textarea'))return;
  if(placing&&(event.pointerType==='touch'||placing==='annotation-line')){
   event.preventDefault();
@@ -740,6 +756,8 @@ diagram.addEventListener('lostpointercapture',()=>{
  updateInspector();scheduleSave();scheduleFloatingActions();
 });
 diagram.addEventListener('keydown',event=>{
+ if(sharedAccess==='view')return;
+
  const node=event.target.closest('[data-item]');
  if(!node)return;
  const arrows={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};
@@ -761,7 +779,7 @@ diagram.addEventListener('keydown',event=>{
  equipment.querySelector('[data-item="'+selectedId+'"]').focus({preventScroll:true});
 });
 document.addEventListener('keydown',event=>{
- if(event.defaultPrevented||event.isComposing||el('plan-editor').hidden||document.querySelector('dialog[open]')||!el('object-menu').hidden)return;
+ if(sharedAccess==='view'||event.defaultPrevented||event.isComposing||el('plan-editor').hidden||document.querySelector('dialog[open]')||!el('object-menu').hidden)return;
  const key=event.key.toLowerCase(),command=event.metaKey||event.ctrlKey;
  if(command&&!event.altKey&&key==='s'){
   event.preventDefault();savePlan(true);return;
@@ -868,7 +886,55 @@ el('custom-color').onsubmit=event=>{
  event.preventDefault();
  applyObjectColor('#'+el('color-hex').value.replace(/^#/,'').toLowerCase());
 };
-el('quick-opacity').onchange=event=>editToolbarItem(item=>{item.opacity=Number(event.target.value);});
+const appearanceDialog=el('object-appearance'),appearanceRange=el('appearance-range');
+let appearanceKey=null,appearanceUnit='';
+const appearanceSettings={
+ stroke:['線の太さ','strokeWeight',1,12,' px',item=>item.kind==='scenery-baton'?1.5:item.kind==='sus'?3:2,.5],
+ corner:['角の丸み','cornerRadius',0,24,'',()=>0,1],
+ crop:['切り抜き','crop',0,40,'%',()=>0,1],
+ opacity:['透明度','opacity',10,100,'%',()=>100,1],
+};
+for(const [id,settings] of Object.entries(appearanceSettings)){
+ el('open-'+id).onclick=()=>{
+  const item=selected();
+  if(!item||locked(item))return;
+  const [label,key,min,max,unit,initial,step]=settings;
+  appearanceKey=key;appearanceUnit=unit;
+  el('appearance-title').textContent=label;
+  appearanceRange.setAttribute('aria-label',label);
+  Object.assign(appearanceRange,{min,max,step,value:item[key]??initial(item)});
+  el('appearance-value').value=appearanceRange.value+unit;
+  el('appearance-adjust').hidden=false;
+  el('appearance-animation').hidden=el('appearance-style').hidden=true;
+  appearanceDialog.showModal();
+ };
+}
+appearanceRange.oninput=()=>{el('appearance-value').value=appearanceRange.value+appearanceUnit;};
+appearanceRange.onchange=()=>editToolbarItem(item=>{item[appearanceKey]=Number(appearanceRange.value);});
+for(const [name,title] of [['animation','アニメーションをプレビュー'],['style','スタイル']]){
+ el('open-'+name).onclick=()=>{
+  el('appearance-title').textContent=title;
+  el('appearance-adjust').hidden=true;
+  el('appearance-animation').hidden=name!=='animation';
+  el('appearance-style').hidden=name!=='style';
+  appearanceDialog.showModal();
+ };
+}
+el('close-appearance').onclick=()=>appearanceDialog.close();
+el('reset-style').onclick=()=>editToolbarItem(item=>{
+ for(const key of ['color','opacity','strokeWeight','cornerRadius','crop'])delete item[key];
+});
+for(const [id,frames] of [
+ ['preview-fade',[{opacity:0},{opacity:1}]],
+ ['preview-pop',[{opacity:.15,scale:.8},{opacity:1,scale:1}]],
+]){
+ el(id).onclick=()=>{
+  appearanceDialog.close();
+  const item=selected();
+  if(!item)return;
+  equipment.querySelector('[data-item="'+item.id+'"] .object-body > g')?.animate(frames,{duration:500,easing:'ease-out'});
+ };
+}
 el('quick-flip').onclick=()=>editToolbarItem(item=>{
  if(item.flipX)delete item.flipX;else item.flipX=true;
 });
@@ -1023,7 +1089,7 @@ diagramScroll.addEventListener('touchend',event=>{
  if(tap.valid&&tap.overlap&&tap.points.size===2&&event.timeStamp-tap.start<=350&&!drag?.undoRecorded){
   if(event.cancelable)event.preventDefault();
   lastObjectTap=null;
-  restoreChange(undoStack,redoStack);
+  if(sharedAccess!=='view')restoreChange(undoStack,redoStack);
  }
 },{passive:false});
 diagramScroll.addEventListener('touchcancel',()=>{
@@ -1124,6 +1190,81 @@ el('item-size').onchange=()=>{
 el('print-plan').onclick=()=>{
  el('print-title').textContent=el('plan-name').value.trim()||'舞台仕込み図';
  window.print();
+};
+
+const shareDialog=el('share-plan');
+let shareLinks={},sharedPdf=null,shareBusy=false;
+const shareStatus=message=>{el('share-status').textContent=message;};
+function updateShareLink(){
+ const token=shareLinks[el('share-role').value];
+ el('create-share-link').hidden=!!token;
+ el('revoke-share-link').hidden=!token;
+ el('share-link-output').hidden=!token;
+ el('share-url').value=token?location.origin+location.pathname+'#share='+token:'';
+ el('send-share-url').hidden=!navigator.share;
+}
+el('open-share').onclick=async()=>{
+ if(shareBusy)return;
+ shareDialog.showModal();
+ sharedPdf=null;shareLinks={};
+ el('share-links').hidden=!!sharedAccess;
+ el('send-share-pdf').hidden=el('download-share-pdf').hidden=true;
+ shareStatus('');updateShareLink();
+ if(sharedAccess||!id)return;
+ shareBusy=true;el('create-share-link').disabled=true;
+ try{shareLinks=(await api('/stage/plans/'+id+'/links')).links;updateShareLink();}
+ catch(error){shareStatus(error.message);}
+ finally{shareBusy=false;el('create-share-link').disabled=false;}
+};
+el('close-share').onclick=()=>shareDialog.close();
+el('share-role').onchange=updateShareLink;
+async function changeShareLink(action){
+ if(shareBusy||sharedAccess)return;
+ shareBusy=true;
+ const role=el('share-role').value;
+ const buttons=['create-share-link','revoke-share-link','share-role'].map(el);
+ buttons.forEach(button=>{button.disabled=true;});
+ shareStatus('');
+ try{
+  if(dirty||saving)await savePlan(true);
+  if(!id||dirty)throw new Error('図面を保存してから共有してください。');
+  shareLinks=(await api('/stage/plans/'+id+'/links',{role,action})).links;
+  updateShareLink();
+  if(action==='revoke')shareStatus('リンクを無効にしました。');
+ }catch(error){shareStatus(error.message);}
+ finally{shareBusy=false;buttons.forEach(button=>{button.disabled=false;});}
+}
+el('create-share-link').onclick=()=>changeShareLink('create');
+el('revoke-share-link').onclick=()=>changeShareLink('revoke');
+el('copy-share-url').onclick=async()=>{
+ const field=el('share-url');
+ try{await navigator.clipboard.writeText(field.value);shareStatus('リンクをコピーしました。');}
+ catch{field.focus();field.select();shareStatus('選択したリンクをコピーしてください。');}
+};
+async function nativeShare(data){
+ try{await navigator.share(data);}
+ catch(error){if(error.name!=='AbortError')shareStatus('端末の共有メニューを開けませんでした。');}
+}
+el('send-share-url').onclick=()=>nativeShare({url:el('share-url').value});
+el('prepare-share-pdf').onclick=async()=>{
+ const button=el('prepare-share-pdf');
+ button.disabled=true;shareStatus('PDFを作成しています…');
+ el('send-share-pdf').hidden=el('download-share-pdf').hidden=true;
+ try{
+  await Promise.all(items.filter(item=>visible(item)&&tools[item.kind]?.source).map(item=>loadSourceImage(item.kind)));
+  sharedPdf=await diagramPdf(diagram,contentBounds(defaultCanvas),el('plan-name').value.trim()||'舞台仕込み図');
+  const supported=typeof navigator.share==='function'&&navigator.canShare?.({files:[sharedPdf]});
+  el('send-share-pdf').hidden=!supported;
+  el('download-share-pdf').hidden=false;
+  shareStatus(supported?'PDFを共有できます。':'PDFを保存できます。');
+ }catch(error){shareStatus(error.message||'PDFを作成できませんでした。');}
+ finally{button.disabled=false;}
+};
+el('send-share-pdf').onclick=()=>{if(sharedPdf)nativeShare({files:[sharedPdf]});};
+el('download-share-pdf').onclick=()=>{
+ if(!sharedPdf)return;
+ const url=URL.createObjectURL(sharedPdf),a=document.createElement('a');
+ a.href=url;a.download=sharedPdf.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 };
 
 async function importSvg(file){
@@ -1482,6 +1623,7 @@ function showObjectMenu(x,y,anchor){
  objectMenu.querySelector('button:not([hidden])')?.focus({preventScroll:true});
 }
 diagram.addEventListener('contextmenu',event=>{
+ if(sharedAccess==='view')return;
  event.preventDefault();
  if(placing)setPlacement(null);
  const target=event.target.closest('[data-item]');
@@ -1492,6 +1634,8 @@ diagram.addEventListener('contextmenu',event=>{
  showObjectMenu(event.clientX||box?.left||16,event.clientY||box?.bottom||16,target);
 });
 diagram.addEventListener('keydown',event=>{
+ if(sharedAccess==='view')return;
+
  if(!(event.key==='ContextMenu'||event.shiftKey&&event.key==='F10'))return;
  const target=event.target.closest('[data-item]');
  if(!target)return;
@@ -1603,7 +1747,7 @@ el('close-stage-types').onclick=()=>typePicker.close();
 function savePlan(manual=false){
  clearTimeout(saveTimer);
  if(saving)return saving;
- if(opening||!dirty||!hasUnsavedChanges())return Promise.resolve();
+ if(sharedAccess==='view'||opening||!dirty||!hasUnsavedChanges())return Promise.resolve();
  const title=el('plan-name').value.trim();
  if(!title){
   status('図面名を入力すると自動保存します。');
@@ -1616,7 +1760,7 @@ function savePlan(manual=false){
  saving=(async()=>{
   let succeeded=false;
   try{
-   const result=await api('/stage/plans'+(id?'/'+id:''),{plan,version});
+   const result=await api(sharedAccess?'/stage/shared/'+sharedToken():'/stage/plans'+(id?'/'+id:''),{plan,version});
    id=result.id;version=result.version;
    rememberPlan();
    savedPlan=serialized;
@@ -1677,11 +1821,30 @@ setupSession(async profile=>{
  const resume=/^[A-Za-z0-9]{20}$/.test(last||'');
  const loading=el('plan-loading'),welcome=el('plan-welcome');
  welcome.hidden=true;
- loading.textContent=resume?'前回の図面を読み込んでいます…':'図面を開く準備をしています…';
+ const token=sharedToken();
+ loading.textContent=token?'共有図面を読み込んでいます…':resume?'前回の図面を読み込んでいます…':'図面を開く準備をしています…';
  loading.hidden=false;
  el('workspace').hidden=false;
  try{
   await loadCatalog();
+  if(token){
+   try{
+    const plan=await api('/stage/shared/'+token);
+    sharedAccess=plan.access;
+    if(!['view','edit'].includes(sharedAccess))throw new Error('共有リンクが無効です。');
+    el('plan-editor').dataset.access=sharedAccess;
+    el('plan-name').readOnly=sharedAccess==='view';
+
+    el('back-to-plans').hidden=false;
+    loadPlan(plan);
+    status(sharedAccess==='view'?'共有図面を閲覧しています。':'共有図面を編集中です。');
+   }catch(error){
+    loading.textContent=error.message;
+    const back=document.createElement('a');back.href='./';back.textContent=' 自分の図面へ';
+    loading.append(back);
+   }
+   return;
+  }
   if(resume){
    try{loadPlan(await api('/stage/plans/'+last));return;}
    catch(error){

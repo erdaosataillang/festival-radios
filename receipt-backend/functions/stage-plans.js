@@ -1,4 +1,5 @@
 'use strict';
+const {randomBytes}=require('node:crypto');
 const {readFile}=require('node:fs/promises');
 const {join}=require('node:path');
 const sourceCatalog=require('./kiwi-catalog.json');
@@ -48,8 +49,11 @@ function validatePlan(value,fail){
   if(item.color!==undefined&&(typeof item.color!=='string'||!/^#[0-9a-f]{6}$/i.test(item.color)))fail(400,'色を確認してください。');
   if(item.opacity!==undefined&&(!Number.isInteger(item.opacity)||item.opacity<10||item.opacity>100))fail(400,'透明度を確認してください。');
   if([item.flipX,item.locked].some(flag=>flag!==undefined&&typeof flag!=='boolean'))fail(400,'オブジェクトの設定を確認してください。');
+  if(item.strokeWeight!==undefined&&(!Number.isFinite(item.strokeWeight)||item.strokeWeight<1||item.strokeWeight>12))fail(400,'線の太さを確認してください。');
+  for(const [key,max] of [['cornerRadius',24],['crop',40]])
+   if(item[key]!==undefined&&(!Number.isInteger(item[key])||item[key]<0||item[key]>max))fail(400,'図形の設定を確認してください。');
   seen.add(item.id);
-  return {id:item.id,kind:item.kind,name:item.name.trim(),x:item.x,y:item.y,angle:item.angle,height:item.height,...(item.color?{color:item.color}:{}),...(item.opacity!==undefined?{opacity:item.opacity}:{}),...(item.flipX?{flipX:true}:{}),...(item.locked?{locked:true}:{}),...(item.layerId?{layerId:item.layerId}:{}),...(item.groupId?{groupId:item.groupId}:{}),...(item.source?{source:item.source}:{}),...(item.size?{size:item.size}:{}),...(item.quantity?{quantity:item.quantity}:{}),...(item.kind==='imported-svg'?{assetId:item.assetId}:{})};
+  return {id:item.id,kind:item.kind,name:item.name.trim(),x:item.x,y:item.y,angle:item.angle,height:item.height,...(item.strokeWeight!==undefined?{strokeWeight:item.strokeWeight}:{}),...(item.cornerRadius!==undefined?{cornerRadius:item.cornerRadius}:{}),...(item.crop!==undefined?{crop:item.crop}:{}),...(item.color?{color:item.color}:{}),...(item.opacity!==undefined?{opacity:item.opacity}:{}),...(item.flipX?{flipX:true}:{}),...(item.locked?{locked:true}:{}),...(item.layerId?{layerId:item.layerId}:{}),...(item.groupId?{groupId:item.groupId}:{}),...(item.source?{source:item.source}:{}),...(item.size?{size:item.size}:{}),...(item.quantity?{quantity:item.quantity}:{}),...(item.kind==='imported-svg'?{assetId:item.assetId}:{})};
  });
  if(value.stageType!==undefined&&!stageTypes.has(value.stageType))fail(400,'ステージタイプを確認してください。');
  const dimensions=value.dimensions;
@@ -65,6 +69,12 @@ function validatePlan(value,fail){
       (c.start[0]===c.end[0]&&c.start[1]===c.end[1])))fail(400,'舞台外周と幕の座標を確認してください。');
  }
  return {title,items,layers:layers.map(({id,name,visible})=>({id,name:name.trim(),visible})),...(value.assets!==undefined?{assets:assets.map(({id,name,data,ratio})=>({id,name,data,ratio})),background:background??null}:{}),...(venue?{venue:{outline:venue.outline.map(([x,y])=>({x,y})),curtains:venue.curtains.map(({name,start,end})=>({name:name.trim(),start,end}))}}:{}),...(dimensions?{dimensions:{width:dimensions.width,depth:dimensions.depth}}:{}),...(value.stageType?{stageType:value.stageType}:{})};
+}
+function planResponse(doc){
+ const {title,items,version,stageType,dimensions,venue,assets,background,layers}=doc.data();
+ return {id:doc.id,title,items,version,...(layers?{layers}:{}),...(assets?.length?{assets}:{}),
+  ...(background?{background}:{}),...(venue?{venue:{...venue,outline:venue.outline.map(({x,y})=>[x,y])}}:{}),
+  ...(dimensions?{dimensions}:{}),...(stageType?{stageType}:{})};
 }
 async function handleStagePlans({req,res,body,db,user,Timestamp,now,fail}){
  if(req.method==='GET'&&req.path==='/stage/source-catalog'){
@@ -84,28 +94,67 @@ async function handleStagePlans({req,res,body,db,user,Timestamp,now,fail}){
   res.json({plans:list.docs.map(doc=>({id:doc.id,title:doc.get('title'),stageType:doc.get('stageType')??null,updatedAt:doc.get('updatedAt').toMillis()}))});
   return true;
  }
+ const links=db.collection('stagePlanLinks');
+ const manage=req.path.match(/^\/stage\/plans\/([A-Za-z0-9]{20})\/links$/);
+ if(manage&&['GET','POST'].includes(req.method)){
+  const ref=plans.doc(manage[1]);
+  if(req.method==='GET'){
+   const doc=await ref.get();
+   if(!doc.exists)fail(404,'図面が見つかりません。');
+   res.json({links:doc.data().shareLinks??{}});return true;
+  }
+  const {role,action}=body;
+  if(!['view','edit'].includes(role)||!['create','revoke'].includes(action))fail(400,'共有方法を確認してください。');
+  const current=await db.runTransaction(async transaction=>{
+   const doc=await transaction.get(ref);
+   if(!doc.exists)fail(404,'図面が見つかりません。');
+   const current={...doc.data().shareLinks};
+   if(action==='create'&&!current[role]){
+    const token=randomBytes(32).toString('hex');
+    transaction.create(links.doc(token),{owner:user.uid,planId:manage[1],role});
+    current[role]=token;
+   }else if(action==='revoke'&&current[role]){
+    transaction.delete(links.doc(current[role]));delete current[role];
+   }
+   transaction.update(ref,{shareLinks:current});
+   return current;
+  });
+  res.json({links:current});return true;
+ }
+ const shared=req.path.match(/^\/stage\/shared\/([a-f0-9]{64})$/);
+ const sharedRef=shared?links.doc(shared[1]):null;
+ const resolveShare=async read=>{
+  const link=await read(sharedRef);
+  if(!link.exists)fail(404,'共有リンクが無効です。');
+  const {owner,planId,role}=link.data();
+  return {ref:db.collection('stagePlanUsers').doc(owner).collection('plans').doc(planId),role};
+ };
  const match=req.path.match(/^\/stage\/plans\/([A-Za-z0-9]{20})$/);
- if(req.method==='GET'&&match){
-  const doc=await plans.doc(match[1]).get();
+ if(req.method==='GET'&&(match||shared)){
+  const access=shared?await resolveShare(ref=>ref.get()):{ref:plans.doc(match[1])};
+  const doc=await access.ref.get();
   if(!doc.exists)fail(404,'図面が見つかりません。');
-  const {title,items,version,stageType,dimensions,venue,assets,background,layers}=doc.data();
-  res.json({id:doc.id,title,items,version,...(layers?{layers}:{}),...(assets?.length?{assets}:{}),...(background?{background}:{}),...(venue?{venue:{...venue,outline:venue.outline.map(({x,y})=>[x,y])}}:{}),...(dimensions?{dimensions}:{}),...(stageType?{stageType}:{})});
+  res.json({...planResponse(doc),...(shared?{access:access.role}:{})});
   return true;
  }
- if(req.method==='POST'&&(req.path==='/stage/plans'||match)){
+ if(req.method==='POST'&&(req.path==='/stage/plans'||match||shared)){
   const plan=validatePlan(body.plan,fail);
-  const ref=match?plans.doc(match[1]):plans.doc();
-  const version=await db.runTransaction(async transaction=>{
+  const ownRef=shared?null:match?plans.doc(match[1]):plans.doc();
+  const updating=!!(match||shared);
+  const result=await db.runTransaction(async transaction=>{
+   const access=shared?await resolveShare(ref=>transaction.get(ref)):{ref:ownRef};
+   if(shared&&access.role!=='edit')fail(403,'この図面は閲覧のみです。');
+   const {ref}=access;
    const doc=await transaction.get(ref);
-   if(match&&!doc.exists)fail(404,'図面が見つかりません。');
-   if(match&&doc.get('version')!==body.version)fail(409,'別の画面で図面が更新されています。開き直してください。');
-   const version=match?body.version+1:1;
+   if(updating&&!doc.exists)fail(404,'図面が見つかりません。');
+   if(updating&&doc.get('version')!==body.version)fail(409,'別の画面で図面が更新されています。開き直してください。');
+   const version=updating?body.version+1:1;
    const record={...plan,version,updatedAt:Timestamp.fromMillis(now())};
-   if(match)transaction.update(ref,record);
+   if(updating)transaction.update(ref,record);
    else transaction.create(ref,record);
-   return version;
+   return {id:ref.id,version};
   });
-  res.json({id:ref.id,version});
+  res.json(result);
   return true;
  }
  return false;
