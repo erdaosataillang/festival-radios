@@ -29,7 +29,7 @@ const annotationTools={
  'annotation-line':{label:'線',color:'#192326'},
  'annotation-text':{label:'テキスト',color:'#192326'},
 };
-const isRigging=item=>tools[item.kind]?.group==='rigging';
+const isRigging=item=>tools[item?.kind]?.group==='rigging';
 const isAnnotation=item=>Object.hasOwn(annotationTools,item.kind);
 let lineDraft=null,lastTextTap=null;
 async function loadSourceImage(kind){
@@ -278,7 +278,7 @@ function draw(){
    });
    symbol.append(text);
   }else symbol.innerHTML=tool.shape;
-  const label=svg('text',{class:isRigging(item)?'rigging-name':'object-name','pointer-events':'none'});
+  const label=svg('text',{class:isRigging(item)?'rigging-name':'object-name','pointer-events':isRigging(item)?'bounding-box':'none'});
   label.textContent=isRigging(item)?item.name:isAnnotation(item)?'':item.name||tool.label;
   body.append(symbol);group.append(body,label);equipment.append(group);
   poseItem(group,item);
@@ -399,18 +399,19 @@ function editText(item){
  if(locked(item))return;
  const group=equipment.querySelector('[data-item="'+item.id+'"]');
  if(!group||group.querySelector('textarea'))return;
- const body=group.querySelector('.object-body');
- const text=body.querySelector('.annotation-text');
+ const rigging=isRigging(item);
+ const body=rigging?group:group.querySelector('.object-body');
+ const text=body.querySelector(rigging?'.rigging-name':'.annotation-text');
  lastTextTap=null;
- const box=svg('foreignObject',{x:-45,width:90});
+ const box=svg('foreignObject',rigging?{x:text.getAttribute('x'),width:150,class:'rigging-editor'}:{x:-45,width:90});
  const editor=document.createElement('textarea');
  editor.className='diagram-text-editor';
- editor.setAttribute('aria-label','図面上のテキスト');
+ editor.setAttribute('aria-label',rigging?'左袖の表示名':'図面上のテキスト');
  editor.maxLength=80;
  editor.value=item.name;
  const resize=()=>{
-  const height=textHeight({name:editor.value});
-  box.setAttribute('y',-height/2);
+  const height=rigging?26:textHeight({name:editor.value});
+  box.setAttribute('y',rigging?Number(text.getAttribute('y'))-17:-height/2);
   box.setAttribute('height',height);
  };
  resize();
@@ -419,7 +420,7 @@ function editText(item){
  editor.addEventListener('keydown',event=>{
   event.stopPropagation();
   if(event.isComposing)return;
-  if(event.key==='Escape'||event.key==='Enter'&&(event.metaKey||event.ctrlKey)){
+  if(event.key==='Escape'||event.key==='Enter'&&(rigging||event.metaKey||event.ctrlKey)){
    event.preventDefault();
    if(event.key==='Escape')editor.value=item.name;
    editor.blur();
@@ -429,7 +430,7 @@ function editText(item){
  editor.addEventListener('blur',()=>{
   if(!box.isConnected)return;
   box.remove();text.style.visibility='';
-  const value=editor.value.trim()||'テキスト';
+  const value=rigging?editor.value.replace(/\s*\n\s*/g,' ').trim():editor.value.trim()||'テキスト';
   if(value===item.name)return;
   item.name=value;changed();draw();updateInspector();
  },{once:true});
@@ -484,6 +485,13 @@ diagram.addEventListener('pointerdown',event=>{
  if(placing){event.preventDefault();addItem(point(event));return;}
  const target=event.target.closest('[data-item]');
  if(!target){marked.clear();selectedId=null;drawControls();updateInspector();return;}
+ if(event.target.closest('.rigging-name')&&!event.shiftKey){
+  selectedId=target.dataset.item;
+  marked.clear();
+  for(const node of equipment.children)node.setAttribute('aria-pressed',String(groupOf(selected()).some(item=>item.id===node.dataset.item)));
+  drawControls();updateInspector();
+  return;
+ }
  const priorSelection=selectedId;
  selectedId=target.dataset.item;
  const item=selected(),start=point(event);
@@ -542,6 +550,11 @@ diagram.addEventListener('pointermove',event=>{
  drawControls();
  changed();
 });
+diagram.addEventListener('dblclick',event=>{
+ if(placing||!event.target.closest('.rigging-name'))return;
+ const item=selected();
+ if(isRigging(item))editText(item);
+});
 diagram.addEventListener('pointerup',event=>{
  if(drag?.pointer!==event.pointerId||drag.grip||drag.item.kind!=='annotation-text')return;
  const {item,clientX,clientY}=drag;
@@ -565,7 +578,7 @@ diagram.addEventListener('keydown',event=>{
  event.preventDefault();
  selectedId=node.dataset.item;
  const item=selected();
- if(event.key==='Enter'&&item.kind==='annotation-text'){editText(item);return;}
+ if(event.key==='Enter'&&(item.kind==='annotation-text'||isRigging(item))){editText(item);return;}
  if(direction&&!locked(item)){
   const step=dimensions?(event.shiftKey?10:1)*geometry().scale:(event.shiftKey?25:5);
   const members=groupOf(item);

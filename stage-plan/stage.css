@@ -253,3 +253,5 @@ h2 { font-size:16px; margin:0 0 12px; }
 .toolbar-field input[type="color"] { width:34px; height:34px; padding:2px; }
 .toolbar-field input[type="range"] { width:68px; min-width:0; }
 #replace-object select { display:block; width:100%; margin-block:6px 12px; }
+.equipment-item .rigging-name { cursor:text; }
+.rigging-editor .diagram-text-editor { font-size:12px; line-height:18px; }
