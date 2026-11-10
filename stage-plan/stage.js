@@ -13,9 +13,37 @@ const equipment=el('equipment');
 const status=message=>{el('plan-status').textContent=message;};
 const clamp=(value,min,max)=>Math.min(max,Math.max(min,value));
 let items=[],id=null,version=null,selectedId=null,placing=null,drag=null;
-let dirty=false,saving=false,opening=false;
+let dirty=false,saving=null,opening=false,saveTimer;
+let previous,undoStack=[],redoStack=[];
+const snapshot=()=>({title:el('plan-name').value,items:items.map(item=>({...item})),selectedId});
+function scheduleSave(){
+ clearTimeout(saveTimer);
+ if(dirty&&!saving&&!opening&&!drag)saveTimer=setTimeout(()=>savePlan(),850);
+}
 const selected=()=>items.find(item=>item.id===selectedId);
-const changed=()=>{dirty=true;status('未保存の変更があります。');};
+function changed(){
+ if(previous&&(!drag||!drag.undoRecorded)){
+  undoStack.push(previous);
+  if(undoStack.length>60)undoStack.shift();
+  redoStack=[];
+  if(drag)drag.undoRecorded=true;
+ }
+ previous=snapshot();
+ dirty=true;
+ status('変更を自動保存します…');
+ scheduleSave();
+}
+function restoreChange(from,to){
+ if(!from.length)return;
+ const focused=diagram.contains(document.activeElement);
+ to.push(snapshot());
+ const state=from.pop();
+ items=state.items;selectedId=state.selectedId;el('plan-name').value=state.title;
+ previous=snapshot();
+ dirty=true;draw();updateInspector();scheduleSave();
+ status('変更を自動保存します…');
+ if(focused&&selectedId)equipment.querySelector('[data-item="'+selectedId+'"]')?.focus({preventScroll:true});
+}
 
 function svg(tag,attrs){
  const node=document.createElementNS('http://www.w3.org/2000/svg',tag);
@@ -116,7 +144,7 @@ diagram.addEventListener('pointermove',event=>{
  equipment.querySelector('[data-item="'+drag.item.id+'"]').setAttribute('transform',`translate(${x} ${y})`);
  changed();
 });
-diagram.addEventListener('lostpointercapture',()=>{drag=null;});
+diagram.addEventListener('lostpointercapture',()=>{drag=null;scheduleSave();});
 diagram.addEventListener('keydown',event=>{
  const node=event.target.closest('[data-item]');
  if(!node)return;
@@ -135,7 +163,27 @@ diagram.addEventListener('keydown',event=>{
  draw();updateInspector();
  equipment.querySelector('[data-item="'+selectedId+'"]').focus({preventScroll:true});
 });
-document.addEventListener('keydown',event=>{if(event.key==='Escape'&&placing)setPlacement(null);});
+document.addEventListener('keydown',event=>{
+ if(event.defaultPrevented||event.isComposing||el('workspace').hidden||document.querySelector('dialog[open]'))return;
+ const key=event.key.toLowerCase(),command=event.metaKey||event.ctrlKey;
+ if(command&&!event.altKey&&key==='s'){
+  event.preventDefault();savePlan(true);return;
+ }
+ if(event.target.closest?.('input, textarea, select, [contenteditable]'))return;
+ if(command&&!event.altKey&&(key==='z'||key==='y')){
+  event.preventDefault();
+  if(key==='y'||event.shiftKey)restoreChange(redoStack,undoStack);
+  else restoreChange(undoStack,redoStack);
+ }else if(!command&&!event.altKey){
+  if(key==='escape'&&placing)setPlacement(null);
+  if((key==='delete'||key==='backspace')&&selected()){
+   event.preventDefault();el('remove-item').click();
+  }
+  if(/^[1-5]$/.test(key)){
+   event.preventDefault();setPlacement(Object.keys(tools)[Number(key)-1]);
+  }
+ }
+});
 el('toggle-grid').onclick=()=>{
  const show=el('toggle-grid').getAttribute('aria-pressed')!=='true';
  el('toggle-grid').setAttribute('aria-pressed',String(show));
@@ -162,29 +210,55 @@ el('remove-item').onclick=()=>{
 function loadPlan(plan){
  id=plan.id??null;version=plan.version??null;
  items=plan.items;el('plan-name').value=plan.title;
+ clearTimeout(saveTimer);
  selectedId=null;setPlacement(null);dirty=false;
+ previous=snapshot();undoStack=[];redoStack=[];
  draw();updateInspector();
  status(id?'保存した図面を開きました。':'新しい図面です。');
 }
-const canReplace=()=>!saving&&!opening&&(!dirty||confirm('未保存の変更を破棄しますか？'));
-el('new-plan').onclick=()=>{
- if(canReplace())loadPlan({title:'新しいステージ図面',items:[]});
+async function canReplace(){
+ if(opening)return false;
+ clearTimeout(saveTimer);
+ if(saving)await saving;
+ if(dirty)await savePlan();
+ return !dirty||confirm('保存できていない変更があります。破棄しますか？');
+}
+el('new-plan').onclick=async()=>{
+ if(await canReplace())loadPlan({title:'新しいステージ図面',items:[]});
 };
-el('save-plan').onclick=async()=>{
- if(saving||opening)return;
+function savePlan(manual=false){
+ clearTimeout(saveTimer);
+ if(saving)return saving;
+ if(opening||(!dirty&&!manual))return Promise.resolve();
  const title=el('plan-name').value.trim();
- if(!title){status('図面名を入力してください。');el('plan-name').focus();return;}
- saving=true;el('save-plan').disabled=true;
+ if(!title){
+  status('図面名を入力すると自動保存します。');
+  if(manual)el('plan-name').focus();
+  return Promise.resolve();
+ }
  const plan={title,items:items.map(item=>({...item}))};
- status('保存しています…');
- try{
-  const result=await api('/stage/plans'+(id?'/'+id:''),{plan,version});
-  id=result.id;version=result.version;
-  dirty=JSON.stringify(plan)!==JSON.stringify({title:el('plan-name').value.trim(),items});
-  status(dirty?'保存後に変更があります。もう一度保存してください。':'サーバーに保存しました。');
- }catch(error){status(error.message||'保存できませんでした。');}
- finally{saving=false;el('save-plan').disabled=false;}
-};
+ el('save-plan').disabled=true;
+ status('サーバーに保存しています…');
+ saving=(async()=>{
+  let succeeded=false;
+  try{
+   const result=await api('/stage/plans'+(id?'/'+id:''),{plan,version});
+   id=result.id;version=result.version;
+   dirty=JSON.stringify(plan)!==JSON.stringify({title:el('plan-name').value.trim(),items});
+   succeeded=true;
+   status(dirty?'変更を自動保存します…':'サーバーに保存しました。');
+  }catch(error){
+   status(error.message||'保存できませんでした。「今すぐ保存」で再試行できます。');
+  }finally{
+   saving=null;
+   el('save-plan').disabled=false;
+   if(succeeded&&dirty)scheduleSave();
+  }
+ })();
+ return saving;
+}
+el('save-plan').onclick=()=>savePlan(true);
+window.addEventListener('online',scheduleSave);
 el('open-list').onclick=async()=>{
  if(saving||opening)return;
  const picker=el('plan-picker'),list=el('plan-list'),message=el('list-status');
@@ -200,7 +274,7 @@ el('open-list').onclick=async()=>{
    time.textContent=new Intl.DateTimeFormat('ja-JP',{dateStyle:'short',timeStyle:'short',timeZone:'Asia/Tokyo'}).format(plan.updatedAt);
    button.append(document.createTextNode(plan.title),time);
    button.onclick=async()=>{
-    if(!canReplace())return;
+    if(!await canReplace())return;
     opening=true;
     message.textContent='図面を開いています…';
     try{loadPlan(await api('/stage/plans/'+plan.id));picker.close();}
@@ -213,4 +287,4 @@ el('open-list').onclick=async()=>{
 };
 el('close-list').onclick=()=>el('plan-picker').close();
 window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue='';}});
-setupSession(()=>{el('workspace').hidden=false;draw();updateInspector();},()=>dirty);
+setupSession(()=>{el('workspace').hidden=false;previous=snapshot();draw();updateInspector();},()=>dirty);
