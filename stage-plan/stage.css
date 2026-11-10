@@ -209,3 +209,5 @@ h2 { font-size:16px; margin:0 0 12px; }
  border:1px solid #7c3aed; border-radius:0; outline:0; background:#fff; color:#192326;
  font:inherit; font-size:7px; line-height:8px; resize:none; overflow:auto;
 }
+
+#add-text, #add-line { touch-action:none; cursor:grab; }

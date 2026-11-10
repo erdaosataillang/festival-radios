@@ -306,7 +306,8 @@ function bindPaletteDrag(button,handle,kind,label){
   suppressClick=!!gesture.ghost;
   if(suppressClick&&gesture.epoch===planEpoch&&isOverDiagram(event)){
    setPlacement(kind);
-   addItem(point(event));
+   if(kind==='annotation-line')startLine(point(event));
+   else addItem(point(event));
   }
   cleanup();
  });
@@ -388,6 +389,13 @@ function editText(item){
  editor.focus({preventScroll:true});editor.select();
 }
 
+function startLine(start){
+ const preview=svg('line',{x1:start.x,y1:start.y,x2:start.x,y2:start.y,stroke:'#7c3aed','stroke-width':2,'vector-effect':'non-scaling-stroke'});
+ el('line-draft').append(preview,svg('circle',{cx:start.x,cy:start.y,r:3,fill:'#7c3aed'}));
+ lineDraft={start,preview};
+ el('placement-help').textContent='線の終点をクリックまたはタップしてください。Escで取り消せます。';
+}
+
 function lineEnd(event,start){
  const end=point(event);
  if(!event.shiftKey)return end;
@@ -412,11 +420,7 @@ diagram.addEventListener('pointerdown',event=>{
    items.push(item);selectedId=item.id;setPlacement(null);changed();draw();updateInspector();
    return;
   }
-  const start=point(event);
-  const preview=svg('line',{x1:start.x,y1:start.y,x2:start.x,y2:start.y,stroke:'#7c3aed','stroke-width':2,'vector-effect':'non-scaling-stroke'});
-  el('line-draft').append(preview,svg('circle',{cx:start.x,cy:start.y,r:3,fill:'#7c3aed'}));
-  lineDraft={start,preview};
-  el('placement-help').textContent='線の終点をクリックまたはタップしてください。Escで取り消せます。';
+  startLine(point(event));
   return;
  }
  const grip=event.target.closest('[data-grip]')?.dataset.grip;
@@ -924,8 +928,10 @@ for(const button of document.querySelectorAll('.tool-rail [data-panel]')){
 }
 el('rail-upload').onclick=()=>{showToolPanel('materials');el('import-symbol').click();};
 el('rail-plans').onclick=()=>el('open-list').click();
-el('add-text').onclick=()=>setPlacement('annotation-text');
-el('add-line').onclick=()=>setPlacement('annotation-line');
+for(const [id,kind] of [['add-text','annotation-text'],['add-line','annotation-line']]){
+ const button=el(id);
+ bindPaletteDrag(button,button,kind,toolFor(kind).label);
+}
 
 function loadPlan(plan){
  closeObjectMenu();
