@@ -1,4 +1,4 @@
-import {api,setupSession} from './session.js';
+import {api,setupSession} from './session.js?v=source-svg-zoom-1';
 import {equipmentShape} from './equipment-symbols.js?v=2';
 
 const stageTypes={
@@ -25,11 +25,28 @@ function positionSvg(x,y,frame=geometry()){
 const quickTools=['speaker','monitor','sub','light','truss'];
 const colors={speakers:'#255a88',instruments:'#326f64',audio:'#47456a',lighting:'#99610e',stage:'#5b6472'};
 const tools=Object.create(null);
+const sourceImages=new Map();
+async function loadSourceImage(kind){
+ if(sourceImages.has(kind))return sourceImages.get(kind);
+ const loading=api('/stage/source-svg/'+kind).then(result=>result.data).catch(error=>{
+  sourceImages.delete(kind);
+  throw error;
+ });
+ sourceImages.set(kind,loading);
+ return loading;
+}
 async function loadCatalog(){
  const response=await fetch(new URL('./catalog.json?v=2',import.meta.url));
  if(!response.ok)throw new Error('機材一覧を読み込めませんでした。');
  for(const {id,label,group,symbol,mark} of await response.json())
   tools[id]={label,group,color:colors[group],shape:equipmentShape(symbol,mark)};
+ const {symbols}=await api('/stage/source-catalog');
+ const categories=document.createElement('optgroup');categories.label='舞台仕込み図オープンテンプレート';
+ categories.append(new Option('配布SVG：すべて','source'));
+ for(const category of new Set(symbols.map(item=>item.category)))categories.append(new Option(category,'source:'+category));
+ el('equipment-category').append(categories);
+ for(const {id,label,category,ratio,size} of symbols)
+  tools[id]={label,group:'source:'+category,source:{ratio,size},color:'#474747'};
  renderPalette();
 }
 const el=id=>document.getElementById(id);
@@ -94,8 +111,8 @@ function updateInspector(){
  el('item-height').value=item.height;
  el('item-source').value=item.source||'venue';
  el('item-quantity').value=item.quantity??1;
- el('item-size-row').hidden=item.kind!=='imported-svg'||!dimensions;
- el('item-size').value=item.size??60;
+ el('item-size-row').hidden=!(item.kind==='imported-svg'||toolFor(item.kind)?.source)||!dimensions;
+ el('item-size').value=item.size??toolFor(item.kind)?.source?.size??60;
  const pos=positionCm(item);
  el('item-x').value=dimensions?pos.x:'';el('item-y').value=dimensions?pos.y:'';
  el('item-x').disabled=el('item-y').disabled=!dimensions;
@@ -142,10 +159,13 @@ function draw(){
    'data-item':item.id,
   });
   const symbol=svg('g',{transform:`rotate(${item.angle})`,fill:tool.color,color:tool.color});
-  if(tool.asset){
-   const width=dimensions?(item.size??60)*geometry().scale:48;
-   const height=width/tool.asset.ratio;
-   symbol.append(svg('image',{href:tool.asset.data,x:-width/2,y:-height/2,width,height}));
+  if(tool.asset||tool.source){
+   const width=dimensions?(item.size??tool.source?.size??60)*geometry().scale:48;
+   const height=width/(tool.asset||tool.source).ratio;
+   const image=svg('image',{x:-width/2,y:-height/2,width,height});
+   symbol.append(image);
+   if(tool.asset)image.setAttribute('href',tool.asset.data);
+   else loadSourceImage(item.kind).then(data=>image.setAttribute('href',data)).catch(()=>{if(image.isConnected)status('SVG記号を読み込めませんでした。図面を開き直してください。');});
   }else symbol.innerHTML=tool.shape;
   const hit=svg('rect',{x:-46,y:-37,width:92,height:74,rx:6,fill:'transparent'});
   const outline=svg('rect',{x:-46,y:-37,width:92,height:74,rx:6,class:'selection'});
@@ -171,7 +191,7 @@ function snapPosition(pos){
 function addItem(position){
  if(items.length>=200){status('1つの図面に配置できる機材は200件までです。');return;}
  const tool=toolFor(placing);
- const item={id:crypto.randomUUID(),kind:tool.asset?'imported-svg':placing,...(tool.asset?{assetId:tool.asset.id,size:60}:{}),name:tool.label,...snapPosition(position),angle:0,height:0};
+ const item={id:crypto.randomUUID(),kind:tool.asset?'imported-svg':placing,...(tool.asset?{assetId:tool.asset.id,size:60}:tool.source?{size:tool.source.size}:{}),name:tool.label,...snapPosition(position),angle:0,height:0};
  items.push(item);
  selectedId=item.id;
  setPlacement(null);
@@ -182,9 +202,10 @@ function renderPalette(){
  const palette=el('palette'),category=el('equipment-category').value;
  const query=el('equipment-search').value.trim().normalize('NFKC').toLowerCase();
  const matches=[...Object.entries(tools),...assets.filter(asset=>asset.id!==background).map(asset=>[asset.id,toolFor(asset.id)])].filter(([kind,tool])=>{
-  if(query)return (category==='quick'||category==='all'||tool.group===category)&&
+  const inCategory=category==='all'||tool.group===category||(category==='source'&&!!tool.source);
+  if(query)return (category==='quick'||inCategory)&&
    (tool.label.normalize('NFKC').toLowerCase().includes(query)||kind.includes(query));
-  return category==='all'||(category==='quick'?quickTools.includes(kind):tool.group===category);
+  return inCategory||(category==='quick'&&quickTools.includes(kind));
  });
  palette.replaceChildren();
  el('equipment-count').textContent=matches.length+'件';
@@ -194,6 +215,7 @@ function renderPalette(){
   button.setAttribute('aria-pressed',String(kind===placing));
   const icon=svg('svg',{viewBox:'-45 -40 90 80',fill:tool.color,color:tool.color,'aria-hidden':'true'});
   if(tool.asset)icon.append(svg('image',{href:tool.asset.data,x:-36,y:-36,width:72,height:72}));
+  else if(tool.source)icon.append(svg('rect',{x:-24,y:-24,width:48,height:48,fill:'none',stroke:'currentColor','stroke-width':5}));
   else icon.innerHTML=tool.shape;
   button.append(icon,document.createTextNode(tool.label));
   button.onclick=()=>setPlacement(placing===kind?null:kind);
@@ -261,6 +283,7 @@ document.addEventListener('keydown',event=>{
   else restoreChange(undoStack,redoStack);
  }else if(!command&&!event.altKey){
   if(key==='escape'&&placing)setPlacement(null);
+  if(['+','=','-'].includes(key)){event.preventDefault();setZoom(zoom+(key==='-'?-25:25));}
   if((key==='delete'||key==='backspace')&&selected()){
    event.preventDefault();el('remove-item').click();
   }
@@ -269,6 +292,22 @@ document.addEventListener('keydown',event=>{
   }
  }
 });
+const diagramScroll=el('diagram-scroll');
+let zoom=100;
+function setZoom(value){
+ const previous=zoom;
+ zoom=clamp(value,50,400);
+ const x=(diagramScroll.scrollLeft+diagramScroll.clientWidth/2)/previous;
+ const y=(diagramScroll.scrollTop+diagramScroll.clientHeight/2)/previous;
+ diagram.style.setProperty('--diagram-zoom',zoom+'%');
+ el('zoom-reset').textContent=zoom+'%';
+ el('zoom-out').disabled=zoom<=50;
+ el('zoom-in').disabled=zoom>=400;
+ diagramScroll.scrollTo(Math.max(0,x*zoom-diagramScroll.clientWidth/2),Math.max(0,y*zoom-diagramScroll.clientHeight/2));
+}
+el('zoom-out').onclick=()=>setZoom(zoom-25);
+el('zoom-in').onclick=()=>setZoom(zoom+25);
+el('zoom-reset').onclick=()=>setZoom(100);
 el('toggle-grid').onclick=()=>{
  const show=el('toggle-grid').getAttribute('aria-pressed')!=='true';
  el('toggle-grid').setAttribute('aria-pressed',String(show));
@@ -481,6 +520,7 @@ el('venue-form').onsubmit=event=>{
 };
 function loadPlan(plan){
  planEpoch++;
+ setZoom(100);
  dimensions=plan.dimensions??null;
  assets=plan.assets??[];background=plan.background??null;
  renderPalette();

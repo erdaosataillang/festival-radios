@@ -3,7 +3,10 @@ const {randomBytes,createHash,timingSafeEqual}=require('node:crypto');
 const receiptData=require('./receipt-data');
 const invoiceData=require('./invoice-data');
 const APP='https://app.urakatabu.com',ACCOUNT='https://lmc-mobile.sorairosystem.com',REDIRECT=APP+'/recipt/',RP='app.urakatabu.com';
-const CLIENTS={receipt:REDIRECT,invoice:APP+'/invoice/',stage:APP+'/stage-plan/'};
+const STAGE_HOST='https://urakata-stage-plan.web.app';
+const CLIENTS={receipt:REDIRECT,invoice:APP+'/invoice/',stage:APP+'/stage-plan/','stage-hosted':STAGE_HOST+'/stage-plan/'};
+const stageClients=new Set(['stage','stage-hosted']);
+const stageRedirects=new Set([...stageClients].map(client=>CLIENTS[client]));
 const {handleStagePlans}=require('./stage-plans');
 const hash=value=>createHash('sha256').update(value).digest('base64url');
 const equal=(a,b)=>typeof a==='string'&&typeof b==='string'&&a.length===b.length&&timingSafeEqual(Buffer.from(a),Buffer.from(b));
@@ -31,35 +34,36 @@ function createHandler({auth,db,Timestamp,webauthn,now=()=>Date.now()}){
  function checkChallenge(s,user,kind){if(!s.exists||s.get('uid')!==user.uid||s.get('kind')!==kind||!s.get('expiresAt')||s.get('expiresAt').toMillis()<=now())fail(401,'認証の有効期限が切れました。もう一度お試しください。');}
  return async(req,res)=>{
   const origin=req.get('origin');res.set('Cache-Control','no-store');
-  if([APP,ACCOUNT].includes(origin)){res.set('Access-Control-Allow-Origin',origin);res.set('Vary','Origin');}
+  if([APP,ACCOUNT,STAGE_HOST].includes(origin)){res.set('Access-Control-Allow-Origin',origin);res.set('Vary','Origin');}
   res.set('Access-Control-Allow-Headers','Content-Type, Authorization');res.set('Access-Control-Allow-Methods','GET, POST, OPTIONS');
-  if(req.method==='OPTIONS'){res.status([APP,ACCOUNT].includes(origin)?204:403).send('');return;}
-  if(origin&&![APP,ACCOUNT].includes(origin)){res.status(403).json({error:'許可されていない接続元です。'});return;}
+  if(req.method==='OPTIONS'){res.status([APP,ACCOUNT,STAGE_HOST].includes(origin)?204:403).send('');return;}
+  if(origin&&![APP,ACCOUNT,STAGE_HOST].includes(origin)){res.status(403).json({error:'許可されていない接続元です。'});return;}
   const body=req.body||{};
   try{
    if(req.method==='POST'&&req.path==='/auth/code'){
     if(origin!==ACCOUNT||!Object.hasOwn(CLIENTS,body.clientId)||body.redirectUri!==CLIENTS[body.clientId]||body.codeChallengeMethod!=='S256'||typeof body.codeChallenge!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(body.codeChallenge))fail(400,'認証要求が正しくありません。');
-    const user=await identity(req,body.clientId==='stage'),code=randomBytes(32).toString('base64url');
+    const user=await identity(req,stageClients.has(body.clientId)),code=randomBytes(32).toString('base64url');
     await db.doc('receiptAuthorizationCodes/'+hash(code)).create({uid:user.uid,redirectUri:body.redirectUri,challenge:body.codeChallenge,expiresAt:Timestamp.fromMillis(now()+60000)});res.json({code});return;
    }
    if(req.method==='POST'&&req.path==='/auth/exchange'){
-    if(origin!==APP||!Object.values(CLIENTS).includes(body.redirectUri)||typeof body.code!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(body.code)||typeof body.codeVerifier!=='string'||!/^[A-Za-z0-9._~-]{43,128}$/.test(body.codeVerifier))fail(400,'認証情報が正しくありません。');
+    if(!Object.values(CLIENTS).includes(body.redirectUri)||origin!==new URL(body.redirectUri).origin||typeof body.code!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(body.code)||typeof body.codeVerifier!=='string'||!/^[A-Za-z0-9._~-]{43,128}$/.test(body.codeVerifier))fail(400,'認証情報が正しくありません。');
     const ref=db.doc('receiptAuthorizationCodes/'+hash(body.code));
     const uid=await db.runTransaction(async t=>{const s=await t.get(ref);if(!s.exists||(s.get('redirectUri')||REDIRECT)!==body.redirectUri||s.get('expiresAt').toMillis()<=now()||!equal(hash(body.codeVerifier),s.get('challenge')))fail(401,'ログインをやり直してください。');t.delete(ref);return s.get('uid');});
     const account=await auth.getUser(uid),s=await db.doc('users/'+uid).get(),p=s.data();
-    if(account.disabled||!s.exists||p.disabled===true||p.active===false||(body.redirectUri===CLIENTS.stage?p.stagePlanAccess===false:p.receiptAccess===false))fail(403,'このアカウントは利用できません。');
+    if(account.disabled||!s.exists||p.disabled===true||p.active===false||(stageRedirects.has(body.redirectUri)?p.stagePlanAccess===false:p.receiptAccess===false))fail(403,'このアカウントは利用できません。');
     res.json({customToken:await auth.createCustomToken(uid,{line:true,registered:true})});return;
    }
    const isStage=req.path.startsWith('/stage/');
    const user=await identity(req,isStage);
    if(isStage){
-    if(origin!==APP)fail(403,'裏方部アプリから操作してください。');
+    if(origin!==APP&&origin!==STAGE_HOST)fail(403,'裏方部アプリから操作してください。');
     if(req.method==='GET'&&req.path==='/stage/me'){
      res.json({profile:{id:user.uid,name:user.name,icon:user.icon}});return;
     }
     if(await handleStagePlans({req,res,body,db,user,Timestamp,now,fail}))return;
     fail(404,'操作が見つかりません。');
    }
+   if(origin===STAGE_HOST)fail(403,'裏方部アプリから操作してください。');
    const refs=credentials(user.uid);
    if(req.method==='GET'&&req.path==='/me'){const [keys,issuer,seal]=await Promise.all([refs.limit(10).get(),registeredIssuer(user.uid),sealRef(user.uid).get()]);res.json({profile:{id:user.uid,name:user.name,icon:user.icon},passkeys:keys.size,issuer,seal:seal.exists?{...seal.data(),updatedAt:seal.get('updatedAt').toMillis()}:null});return;}
    if(origin!==APP)fail(403,'裏方部アプリから操作してください。');

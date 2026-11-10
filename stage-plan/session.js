@@ -1,7 +1,8 @@
 import '../assets/account-header.js?v=lmc-dialog-1';
 
 const apiBase='https://asia-northeast1-urakata-app.cloudfunctions.net/receiptApi';
-const redirect='https://app.urakatabu.com/stage-plan/';
+const hosted=location.origin==='https://urakata-stage-plan.web.app';
+const redirect=hosted?'https://urakata-stage-plan.web.app/stage-plan/':'https://app.urakatabu.com/stage-plan/';
 const authorize='https://lmc-mobile.sorairosystem.com/stage-authorize.html';
 const storageKey='stage-plan-login';
 const el=id=>document.getElementById(id);
@@ -34,7 +35,7 @@ async function login(){
   const challenge=encode(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier)));
   sessionStorage.setItem(storageKey,JSON.stringify({state,verifier,at:Date.now()}));
   const url=new URL(authorize);
-  url.search=new URLSearchParams({response_type:'code',client_id:'stage',redirect_uri:redirect,state,code_challenge:challenge,code_challenge_method:'S256'});
+  url.search=new URLSearchParams({response_type:'code',client_id:hosted?'stage-hosted':'stage',redirect_uri:redirect,state,code_challenge:challenge,code_challenge_method:'S256'});
   location.assign(url);
  }catch{status('ログインを開始できませんでした。');}
 }

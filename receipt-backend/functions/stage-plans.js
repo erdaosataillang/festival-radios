@@ -1,6 +1,10 @@
 'use strict';
+const {readFile}=require('node:fs/promises');
+const {join}=require('node:path');
+const sourceCatalog=require('./kiwi-catalog.json');
+const sourceKinds=new Set(sourceCatalog.map(item=>item.id));
 const stageTypes=new Set(['hall','multipurpose','temporary']);
-const kinds=new Set(require('./stage-catalog.json').map(tool=>tool.id));
+const kinds=new Set([...require('./stage-catalog.json').map(tool=>tool.id),...sourceKinds]);
 function validatePlan(value,fail){
  const title=typeof value?.title==='string'?value.title.trim():'';
  if(!title||title.length>100||!Array.isArray(value.items)||value.items.length>200)
@@ -46,6 +50,17 @@ function validatePlan(value,fail){
  return {title,items,...(value.assets!==undefined?{assets:assets.map(({id,name,data,ratio})=>({id,name,data,ratio})),background:background??null}:{}),...(venue?{venue:{outline:venue.outline.map(([x,y])=>({x,y})),curtains:venue.curtains.map(({name,start,end})=>({name:name.trim(),start,end}))}}:{}),...(dimensions?{dimensions:{width:dimensions.width,depth:dimensions.depth}}:{}),...(value.stageType?{stageType:value.stageType}:{})};
 }
 async function handleStagePlans({req,res,body,db,user,Timestamp,now,fail}){
+ if(req.method==='GET'&&req.path==='/stage/source-catalog'){
+  res.json({symbols:sourceCatalog});return true;
+ }
+ const sourceMatch=req.path.match(/^\/stage\/source-svg\/(kiwi-[a-f0-9]{20})$/);
+ if(req.method==='GET'&&sourceMatch){
+  const id=sourceMatch[1];
+  if(!sourceKinds.has(id))fail(404,'SVG記号が見つかりません。');
+  const file=await readFile(join(__dirname,'kiwi-assets',id+'.svg'));
+  res.json({data:'data:image/svg+xml;base64,'+file.toString('base64')});
+  return true;
+ }
  const plans=db.collection('stagePlanUsers').doc(user.uid).collection('plans');
  if(req.method==='GET'&&req.path==='/stage/plans'){
   const list=await plans.orderBy('updatedAt','desc').limit(100).get();

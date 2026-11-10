@@ -116,3 +116,11 @@ h2 { font-size:16px; margin:0 0 12px; }
 
 .field-source { grid-template-columns:1fr; }
 .field-source select { width:100%; min-height:38px; }
+#diagram-scroll { overflow:auto; max-height:75dvh; border:1px solid #d4d4d4; border-radius:5px; }
+#diagram-scroll #diagram { width:var(--diagram-zoom,100%); max-width:none; border:0; border-radius:0; }
+.zoom-controls { display:flex; gap:4px; }
+.zoom-controls button { min-width:42px; }
+@media print {
+ #diagram-scroll { overflow:visible; max-height:none; border:0; }
+ #diagram-scroll #diagram { width:100%; }
+}

@@ -1,0 +1,8 @@
+{
+  "hosting": {
+    "site": "urakata-stage-plan",
+    "public": "stage-hosting",
+    "redirects": [{"source": "/", "destination": "/stage-plan/", "type": 302}],
+    "headers": [{"source": "**/*.html", "headers": [{"key": "Cache-Control", "value": "no-cache"}]}]
+  }
+}
