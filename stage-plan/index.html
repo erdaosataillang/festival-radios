@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ja" class="official-ui auth-pending" data-astryx-theme="neutral" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>ステージ図面 | 裏方部</title>
+<link rel="stylesheet" media="screen" href="../assets/vendor/astryx/neutral-0.7.11.css">
+<link rel="stylesheet" href="../assets/account-header.css?v=lmc-dialog-1">
+<link rel="stylesheet" href="../assets/auth-gate.css?v=1">
+<link rel="stylesheet" href="../assets/official-theme.css?v=1">
+<link rel="stylesheet" href="../assets/astryx-ui.css?v=2">
+<link rel="stylesheet" href="stage.css">
+<script type="module" src="stage.js"></script>
+</head>
+<body>
+<header><span class="header-title">ステージ図面</span><a class="header-brand app-home" href="../">アプリ一覧</a><urakata-account></urakata-account></header>
+<section class="auth-gate" aria-labelledby="login-title">
+<div class="auth-mark"><img src="../assets/urakata_logo.svg" width="38" height="38" alt="裏方部"></div>
+<h1 id="login-title">ステージ図面</h1>
+<div class="auth-state"><p id="auth-status" role="status">ログインを確認しています。</p><div class="auth-progress" aria-hidden="true"></div></div>
+<button id="login-receipt" class="primary" type="button" disabled>裏方アカウントでログイン</button>
+<button id="retry-session" type="button" hidden>接続を再試行</button>
+</section>
+<main id="workspace" hidden>
+<div class="plan-bar panel">
+ <label for="plan-name">図面名<input id="plan-name" maxlength="100" value="新しいステージ図面"></label>
+ <div class="plan-actions">
+  <button id="new-plan" type="button">新規</button>
+  <button id="open-list" type="button">保存した図面</button>
+  <button id="save-plan" class="primary" type="button">サーバーに保存</button>
+ </div>
+</div>
+<p id="plan-status" class="plan-status" role="status"></p>
+<div class="plan-layout">
+ <aside class="panel equipment-panel">
+  <h2>機材を追加</h2>
+  <div id="palette" class="palette"></div>
+  <p id="placement-help" class="hint">機材を選び、図面をクリックして配置します。</p>
+  <section class="inspector" aria-labelledby="inspector-title">
+   <h2 id="inspector-title">配置設定</h2>
+   <p id="empty-selection" class="hint">図面の機材を選んでください。</p>
+   <fieldset id="item-fields" hidden>
+    <label for="item-name">機材名</label><input id="item-name" maxlength="80">
+    <div class="field-pair"><label for="item-angle">向き（°）</label><input id="item-angle" type="number" min="0" max="359" step="1" inputmode="numeric"></div>
+    <div class="field-pair"><label for="item-height">高さ（m）</label><input id="item-height" type="number" min="0" max="30" step=".1" inputmode="decimal"></div>
+    <button id="remove-item" class="danger" type="button">機材を削除</button>
+   </fieldset>
+  </section>
+ </aside>
+ <section class="panel diagram-panel" aria-labelledby="diagram-title">
+  <div class="diagram-heading"><h2 id="diagram-title">平面図</h2><button id="toggle-grid" type="button" aria-pressed="true">グリッド</button></div>
+  <svg id="diagram" viewBox="0 0 1000 650" aria-label="ステージ機材配置図">
+   <defs><pattern id="stage-grid" width="25" height="25" patternUnits="userSpaceOnUse"><path d="M25 0H0V25" fill="none" stroke="#d9dfe7" stroke-width="1"/></pattern></defs>
+   <rect width="1000" height="650" fill="#f8fafc"/>
+   <rect id="grid" width="1000" height="650" fill="url(#stage-grid)"/>
+   <rect x="155" y="82" width="690" height="335" rx="8" class="stage-area"/>
+   <text x="500" y="119" class="diagram-label">ステージ奥</text>
+   <text x="500" y="397" class="diagram-label">ステージ前</text>
+   <text x="500" y="580" class="diagram-label">客席側</text>
+   <g id="equipment"></g>
+  </svg>
+  <p class="hint">機材をドラッグして移動できます。選択した機材は矢印キーでも動かせます。</p>
+ </section>
+</div>
+</main>
+<dialog id="plan-picker" aria-labelledby="plan-list-title">
+ <div class="diagram-heading"><h2 id="plan-list-title">保存した図面</h2><button id="close-list" type="button">閉じる</button></div>
+ <p id="list-status" role="status"></p>
+ <ul id="plan-list"></ul>
+</dialog>
+</body>
+</html>

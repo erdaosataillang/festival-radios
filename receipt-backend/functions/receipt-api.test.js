@@ -110,3 +110,20 @@ test('伝票は日本時間の年ごとに20から、永久伝票は120から通
  assert.equal((await verify(await prepare(await numbers()))).code,200);
  assert.deepEqual(await numbers(),{number:'21',permanent:'122'});
 });
+
+test('ステージ図面の更新は本人の図面に限定し、競合時に上書きしない',async()=>{
+ const s=setup(),id='p'.repeat(20);
+ const plan={title:'ステージ確認',items:[{id:'550e8400-e29b-41d4-a716-446655440000',kind:'light',name:'照明A',x:500,y:100,angle:90,height:4}]};
+ assert.equal((await s.call('/stage/plans',{plan})).code,200);
+ s.rows.set('stagePlanUsers/user1/plans/'+id,{...plan,version:1,updatedAt:{toMillis:()=>1000}});
+ assert.deepEqual((await s.call('/stage/plans/'+id)).body,{...plan,id,version:1});
+ const updated={...plan,title:'照明図'};
+ assert.equal((await s.call('/stage/plans/'+id,{plan:updated,version:1})).body.version,2);
+ assert.equal((await s.call('/stage/plans/'+id,{plan,version:1})).code,409);
+ assert.equal((await s.call('/stage/plans/'+id)).body.title,'照明図');
+ s.rows.set('stagePlanUsers/user2/plans/'+'q'.repeat(20),{...plan,version:1});
+ assert.equal((await s.call('/stage/plans/'+'q'.repeat(20))).code,404);
+ assert.equal((await s.call('/stage/plans')).body.plans.length,2);
+ assert.equal((await setup({claims:null}).call('/stage/plans')).code,401);
+ assert.equal((await setup({user:{name:'確認',stagePlanAccess:false}}).call('/stage/plans')).code,403);
+});

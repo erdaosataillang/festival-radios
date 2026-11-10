@@ -16,5 +16,11 @@
     "title": "請求書",
     "description": "明細・支払期限・振込先を入力してPDFを発行",
     "icon": "receipt"
+  },
+  {
+    "id": "stage-plan",
+    "title": "ステージ図面",
+    "description": "スピーカー・照明・トラスの配置図を作成",
+    "icon": "stage"
   }
 ]

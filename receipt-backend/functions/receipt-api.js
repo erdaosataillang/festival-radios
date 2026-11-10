@@ -3,18 +3,19 @@ const {randomBytes,createHash,timingSafeEqual}=require('node:crypto');
 const receiptData=require('./receipt-data');
 const invoiceData=require('./invoice-data');
 const APP='https://app.urakatabu.com',ACCOUNT='https://lmc-mobile.sorairosystem.com',REDIRECT=APP+'/recipt/',RP='app.urakatabu.com';
-const CLIENTS={receipt:REDIRECT,invoice:APP+'/invoice/'};
+const CLIENTS={receipt:REDIRECT,invoice:APP+'/invoice/',stage:APP+'/stage-plan/'};
+const {handleStagePlans}=require('./stage-plans');
 const hash=value=>createHash('sha256').update(value).digest('base64url');
 const equal=(a,b)=>typeof a==='string'&&typeof b==='string'&&a.length===b.length&&timingSafeEqual(Buffer.from(a),Buffer.from(b));
 function fail(status,message){throw Object.assign(new Error(message),{status});}
 const id=value=>typeof value==='string'&&/^[A-Za-z0-9_-]{32}$/.test(value);
 const digest=value=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
 function createHandler({auth,db,Timestamp,webauthn,now=()=>Date.now()}){
- async function identity(req){
+ async function identity(req,stage=false){
   let claims;try{claims=await auth.verifyIdToken((req.get('authorization')||'').replace(/^Bearer\s+/i,''),true);}catch{fail(401,'裏方アカウントでログインしてください。');}
   if(claims.line!==true||claims.registered!==true)fail(403,'登録済みの裏方アカウントが必要です。');
   const user=await db.doc('users/'+claims.uid).get(),data=user.data();
-  if(!user.exists||data.disabled===true||data.active===false||data.receiptAccess===false||typeof data.name!=='string'||!data.name.trim())fail(403,'このアカウントは利用できません。');
+  if(!user.exists||data.disabled===true||data.active===false||(stage?data.stagePlanAccess===false:data.receiptAccess===false)||typeof data.name!=='string'||!data.name.trim())fail(403,'このアカウントは利用できません。');
   return {uid:claims.uid,name:data.name.trim().slice(0,80),icon:typeof data.icon==='string'?data.icon:null,authTime:claims.auth_time};
  }
  const credentials=uid=>db.collection('receiptUsers').doc(uid).collection('credentials');
@@ -38,7 +39,7 @@ function createHandler({auth,db,Timestamp,webauthn,now=()=>Date.now()}){
   try{
    if(req.method==='POST'&&req.path==='/auth/code'){
     if(origin!==ACCOUNT||!Object.hasOwn(CLIENTS,body.clientId)||body.redirectUri!==CLIENTS[body.clientId]||body.codeChallengeMethod!=='S256'||typeof body.codeChallenge!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(body.codeChallenge))fail(400,'認証要求が正しくありません。');
-    const user=await identity(req),code=randomBytes(32).toString('base64url');
+    const user=await identity(req,body.clientId==='stage'),code=randomBytes(32).toString('base64url');
     await db.doc('receiptAuthorizationCodes/'+hash(code)).create({uid:user.uid,redirectUri:body.redirectUri,challenge:body.codeChallenge,expiresAt:Timestamp.fromMillis(now()+60000)});res.json({code});return;
    }
    if(req.method==='POST'&&req.path==='/auth/exchange'){
@@ -46,10 +47,19 @@ function createHandler({auth,db,Timestamp,webauthn,now=()=>Date.now()}){
     const ref=db.doc('receiptAuthorizationCodes/'+hash(body.code));
     const uid=await db.runTransaction(async t=>{const s=await t.get(ref);if(!s.exists||(s.get('redirectUri')||REDIRECT)!==body.redirectUri||s.get('expiresAt').toMillis()<=now()||!equal(hash(body.codeVerifier),s.get('challenge')))fail(401,'ログインをやり直してください。');t.delete(ref);return s.get('uid');});
     const account=await auth.getUser(uid),s=await db.doc('users/'+uid).get(),p=s.data();
-    if(account.disabled||!s.exists||p.disabled===true||p.active===false||p.receiptAccess===false)fail(403,'このアカウントは利用できません。');
+    if(account.disabled||!s.exists||p.disabled===true||p.active===false||(body.redirectUri===CLIENTS.stage?p.stagePlanAccess===false:p.receiptAccess===false))fail(403,'このアカウントは利用できません。');
     res.json({customToken:await auth.createCustomToken(uid,{line:true,registered:true})});return;
    }
-   const user=await identity(req);
+   const isStage=req.path.startsWith('/stage/');
+   const user=await identity(req,isStage);
+   if(isStage){
+    if(origin!==APP)fail(403,'裏方部アプリから操作してください。');
+    if(req.method==='GET'&&req.path==='/stage/me'){
+     res.json({profile:{id:user.uid,name:user.name,icon:user.icon}});return;
+    }
+    if(await handleStagePlans({req,res,body,db,user,Timestamp,now,fail}))return;
+    fail(404,'操作が見つかりません。');
+   }
    const refs=credentials(user.uid);
    if(req.method==='GET'&&req.path==='/me'){const [keys,issuer,seal]=await Promise.all([refs.limit(10).get(),registeredIssuer(user.uid),sealRef(user.uid).get()]);res.json({profile:{id:user.uid,name:user.name,icon:user.icon},passkeys:keys.size,issuer,seal:seal.exists?{...seal.data(),updatedAt:seal.get('updatedAt').toMillis()}:null});return;}
    if(origin!==APP)fail(403,'裏方部アプリから操作してください。');
