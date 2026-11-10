@@ -269,3 +269,5 @@ h2 { font-size:16px; margin:0 0 12px; }
 #floating-actions button[aria-pressed="true"] { background:#ede9fe; color:#5b21b6; }
 #floating-actions svg { width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
 @media print { #floating-actions { display:none!important; } }
+#floating-actions button[hidden] { display:none; }
+#floating-actions #float-group { width:auto; padding-inline:12px; border-radius:20px; white-space:nowrap; }

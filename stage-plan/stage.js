@@ -214,9 +214,13 @@ function scheduleFloatingActions(){
  floatingFrame=requestAnimationFrame(()=>{
   floatingFrame=0;
   const toolbar=el('floating-actions');
-  const node=selectedId&&equipment.querySelector('[data-item="'+selectedId+'"] .object-body');
-  if(!node||drag||diagram.querySelector('.diagram-text-editor')){toolbar.hidden=true;return;}
-  const object=node.getBoundingClientRect(),scroll=el('diagram-scroll').getBoundingClientRect();
+  const nodes=Array.from(equipment.children).filter(node=>marked.size?
+   marked.has(node.dataset.item):node.dataset.item===selectedId);
+  if(!nodes.length||drag||diagram.querySelector('.diagram-text-editor')){toolbar.hidden=true;return;}
+  const rects=nodes.map(node=>node.querySelector('.object-body').getBoundingClientRect());
+  const object={left:Math.min(...rects.map(r=>r.left)),right:Math.max(...rects.map(r=>r.right)),
+   top:Math.min(...rects.map(r=>r.top)),bottom:Math.max(...rects.map(r=>r.bottom))};
+  const scroll=el('diagram-scroll').getBoundingClientRect();
   if(object.right<=scroll.left||object.left>=scroll.right||object.bottom<=scroll.top||object.top>=scroll.bottom){
    toolbar.hidden=true;return;
   }
@@ -236,6 +240,10 @@ function drawControls(){
  el('undo-edit').disabled=!undoStack.length;
  el('redo-edit').disabled=!redoStack.length;
  const fixed=locked(item),unavailable=!item||fixed;
+ const multi=marked.size>1;
+ el('float-group').hidden=!multi;
+ el('float-group').disabled=layerSelection().some(locked);
+ for(const id of ['float-edit','quick-lock','quick-duplicate','float-delete','quick-menu'])el(id).hidden=multi;
  const lock=el('quick-lock'),lockLabel=fixed?'ロック解除':'ロック';
  lock.setAttribute('aria-pressed',String(fixed));
  lock.setAttribute('aria-label',lockLabel);lock.title=lockLabel;
@@ -506,20 +514,26 @@ diagram.addEventListener('pointerdown',event=>{
  if(placing){event.preventDefault();addItem(point(event));return;}
  const target=event.target.closest('[data-item]');
  if(!target){marked.clear();selectedId=null;drawControls();updateInspector();return;}
- if(event.target.closest('.rigging-name')&&!event.shiftKey){
+ const toggleSelection=event.metaKey||event.shiftKey;
+ if(event.target.closest('.rigging-name')&&!toggleSelection){
   selectedId=target.dataset.item;
   marked.clear();
   for(const node of equipment.children)node.setAttribute('aria-pressed',String(groupOf(selected()).some(item=>item.id===node.dataset.item)));
   drawControls();updateInspector();
   return;
  }
- const priorSelection=selectedId;
+ const priorSelection=selected();
  selectedId=target.dataset.item;
  const item=selected(),start=point(event);
- if(event.shiftKey){
-  if(!marked.size&&priorSelection&&priorSelection!==item.id)marked.add(priorSelection);
-  if(marked.has(item.id))marked.delete(item.id);else marked.add(item.id);
-  selectedId=null;
+ if(toggleSelection){
+  event.preventDefault();
+  if(!marked.size)for(const member of groupOf(priorSelection))marked.add(member.id);
+  const members=groupOf(item),remove=members.every(member=>marked.has(member.id));
+  for(const member of members){
+   if(remove)marked.delete(member.id);else marked.add(member.id);
+  }
+  selectedId=marked.size===1?marked.values().next().value:null;
+  if(selectedId)marked.clear();
   draw();updateInspector();return;
  }
  marked.clear();
@@ -705,6 +719,7 @@ replaceDialog.addEventListener('close',()=>{
 el('quick-properties').onclick=editSelected;
 el('float-edit').onclick=editSelected;
 el('float-delete').onclick=()=>el('remove-item').click();
+el('float-group').onclick=()=>el('group-items').click();
 el('quick-menu').onclick=()=>{
  const button=el('quick-menu'),box=button.getBoundingClientRect();
  showObjectMenu(box.left,box.bottom+4,button);
