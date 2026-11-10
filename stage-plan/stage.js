@@ -5,7 +5,21 @@ const stageTypes={
  multipurpose:{label:'多目的ホール',description:'室内にステージと客席を配置する会場',bounds:[205,95,590,245]},
  temporary:{label:'仮設ステージ',description:'屋外やイベント会場に設置するステージ',bounds:[275,130,450,210]},
 };
-let stageType=null;
+let stageType=null,dimensions=null;
+const defaultDimensions={hall:[1400,700],multipurpose:[1000,500],temporary:[800,400]};
+function geometry(){
+ const [x,y,w,h]=(stageTypes[stageType]||stageTypes.hall).bounds;
+ if(!dimensions)return {x,y,w,h,scale:1};
+ const scale=Math.min(690/dimensions.width,335/dimensions.depth);
+ const width=dimensions.width*scale,height=dimensions.depth*scale;
+ return {x:(1000-width)/2,y:82,w:width,h:height,scale};
+}
+function positionCm(item,frame=geometry()){
+ return {x:Math.round((item.x-frame.x)/frame.scale),y:Math.round((item.y-frame.y)/frame.scale)};
+}
+function positionSvg(x,y,frame=geometry()){
+ return {x:frame.x+x*frame.scale,y:frame.y+y*frame.scale};
+}
 
 const tools={
  speaker:{label:'メインスピーカー',color:'#255a88',shape:'<rect x="-16" y="-21" width="32" height="42" rx="4"/><circle cy="8" r="8" fill="white"/><circle cy="-10" r="4" fill="white"/><path d="M-7 23h14L0 32z"/>'},
@@ -22,7 +36,7 @@ const clamp=(value,min,max)=>Math.min(max,Math.max(min,value));
 let items=[],id=null,version=null,selectedId=null,placing=null,drag=null;
 let dirty=false,saving=null,opening=false,saveTimer;
 let previous,undoStack=[],redoStack=[];
-const snapshot=()=>({title:el('plan-name').value,items:items.map(item=>({...item})),selectedId});
+const snapshot=()=>({title:el('plan-name').value,items:items.map(item=>({...item})),selectedId,dimensions});
 function scheduleSave(){
  clearTimeout(saveTimer);
  if(dirty&&!saving&&!opening&&!drag)saveTimer=setTimeout(()=>savePlan(),850);
@@ -45,7 +59,7 @@ function restoreChange(from,to){
  const focused=diagram.contains(document.activeElement);
  to.push(snapshot());
  const state=from.pop();
- items=state.items;selectedId=state.selectedId;el('plan-name').value=state.title;
+ dimensions=state.dimensions;drawStage();items=state.items;selectedId=state.selectedId;el('plan-name').value=state.title;
  previous=snapshot();
  dirty=true;draw();updateInspector();scheduleSave();
  status('変更を自動保存します…');
@@ -74,6 +88,9 @@ function updateInspector(){
  el('item-name').value=item.name;
  el('item-angle').value=item.angle;
  el('item-height').value=item.height;
+ const pos=positionCm(item);
+ el('item-x').value=dimensions?pos.x:'';el('item-y').value=dimensions?pos.y:'';
+ el('item-x').disabled=el('item-y').disabled=!dimensions;
 }
 
 function draw(){
@@ -102,10 +119,16 @@ function point(event){
  return {x:Math.round(clamp(pos.x,0,1000)),y:Math.round(clamp(pos.y,0,650))};
 }
 
+function snapPosition(pos){
+ if(!dimensions)return pos;
+ const frame=geometry(),cm=positionCm(pos,frame);
+ const snapped=positionSvg(cm.x,cm.y,frame);
+ return {x:clamp(snapped.x,0,1000),y:clamp(snapped.y,0,650)};
+}
 function addItem(position){
  if(items.length>=200){status('1つの図面に配置できる機材は200件までです。');return;}
  const kind=placing;
- const item={id:crypto.randomUUID(),kind,name:tools[kind].label,...position,angle:0,height:0};
+ const item={id:crypto.randomUUID(),kind,name:tools[kind].label,...snapPosition(position),angle:0,height:0};
  items.push(item);
  selectedId=item.id;
  setPlacement(null);
@@ -144,14 +167,13 @@ diagram.addEventListener('pointerdown',event=>{
 diagram.addEventListener('pointermove',event=>{
  if(!drag||event.pointerId!==drag.pointer)return;
  const end=point(event);
- const x=clamp(drag.x+end.x-drag.start.x,0,1000);
- const y=clamp(drag.y+end.y-drag.start.y,0,650);
+ const {x,y}=snapPosition({x:clamp(drag.x+end.x-drag.start.x,0,1000),y:clamp(drag.y+end.y-drag.start.y,0,650)});
  if(x===drag.item.x&&y===drag.item.y)return;
  drag.item.x=x;drag.item.y=y;
  equipment.querySelector('[data-item="'+drag.item.id+'"]').setAttribute('transform',`translate(${x} ${y})`);
  changed();
 });
-diagram.addEventListener('lostpointercapture',()=>{drag=null;scheduleSave();});
+diagram.addEventListener('lostpointercapture',()=>{drag=null;updateInspector();scheduleSave();});
 diagram.addEventListener('keydown',event=>{
  const node=event.target.closest('[data-item]');
  if(!node)return;
@@ -162,7 +184,7 @@ diagram.addEventListener('keydown',event=>{
  selectedId=node.dataset.item;
  const item=selected();
  if(direction){
-  const step=event.shiftKey?25:5;
+  const step=dimensions?(event.shiftKey?10:1)*geometry().scale:(event.shiftKey?25:5);
   item.x=clamp(item.x+step*direction[0],0,1000);
   item.y=clamp(item.y+step*direction[1],0,650);
   changed();
@@ -216,15 +238,56 @@ el('remove-item').onclick=()=>{
 
 function drawStage(){
  const template=stageTypes[stageType]||stageTypes.hall;
- const [x,y,width,height]=template.bounds;
+ const {x,y,w:width,h:height,scale}=geometry();
  const boundary=el('stage-boundary');
  for(const [key,value] of Object.entries({x,y,width,height}))boundary.setAttribute(key,value);
  boundary.setAttribute('stroke-dasharray',stageType==='temporary'?'8 5':'none');
  el('stage-rear').setAttribute('y',y+35);
  el('stage-front').setAttribute('y',y+height-20);
  el('stage-type-label').textContent=stageType?template.label:'';
+ const fallback=defaultDimensions[stageType]||defaultDimensions.hall;
+ el('stage-width').value=dimensions?.width??fallback[0];
+ el('stage-depth').value=dimensions?.depth??fallback[1];
+ const lines=el('dimension-lines');lines.replaceChildren();
+ if(!dimensions)return;
+ const line=(x1,y1,x2,y2)=>lines.append(svg('line',{x1,y1,x2,y2,stroke:'#34465b','stroke-width':2}));
+ const label=(x,y,text)=>{const node=svg('text',{x,y,class:'diagram-label'});node.textContent=text;lines.append(node);};
+ line(x,55,x+width,55);line(x,48,x,62);line(x+width,48,x+width,62);
+ label(x+width/2,43,dimensions.width+' cm');
+ line(x+width+21,y,x+width+21,y+height);
+ line(x+width+14,y,x+width+28,y);line(x+width+14,y+height,x+width+28,y+height);
+ label(x+width+75,y+height/2,dimensions.depth+' cm');
+ line(42,610,42+100*scale,610);line(42,604,42,616);line(42+100*scale,604,42+100*scale,616);
+ label(42+50*scale,635,'100 cm');
+
 }
+for(const field of ['x','y']){
+ el('item-'+field).onchange=()=>{
+  const item=selected(),value=el('item-'+field).valueAsNumber;
+  if(!item||!dimensions||!Number.isFinite(value)){updateInspector();return;}
+  const cm=positionCm(item);cm[field]=Math.round(value);
+  const pos=positionSvg(cm.x,cm.y);
+  if(pos.x<0||pos.x>1000||pos.y<0||pos.y>650){updateInspector();status('図面の範囲内の座標を入力してください。');return;}
+  Object.assign(item,pos);changed();draw();updateInspector();
+ };
+}
+el('stage-dimensions').onsubmit=event=>{
+ event.preventDefault();
+ const next={width:el('stage-width').valueAsNumber,depth:el('stage-depth').valueAsNumber};
+ if(!event.currentTarget.checkValidity())return;
+ const old=dimensions,original=geometry();
+ dimensions=next;
+ if(old){
+  const moved=items.map(item=>{const cm=positionCm(item,original);return {...item,...positionSvg(cm.x,cm.y)};});
+  if(moved.some(item=>item.x<0||item.x>1000||item.y<0||item.y>650)){
+   dimensions=old;status('寸法変更後に図面外に出る機材があります。配置を見直してください。');return;
+  }
+  items=moved;
+ }
+ drawStage();draw();updateInspector();changed();
+};
 function loadPlan(plan){
+ dimensions=plan.dimensions??null;
  stageType=Object.hasOwn(stageTypes,plan.stageType)?plan.stageType:null;
  el('plan-welcome').hidden=true;el('plan-editor').hidden=false;
  drawStage();
@@ -250,7 +313,7 @@ for(const [key,template] of Object.entries(stageTypes)){
  button.append(name,description);
  button.onclick=()=>{
   typePicker.close();
-  loadPlan({title:template.label+'の図面',stageType:key,items:[]});
+  loadPlan({title:template.label+'の図面',stageType:key,dimensions:{width:defaultDimensions[key][0],depth:defaultDimensions[key][1]},items:[]});
   changed();
  };
  el('stage-types').append(button);
@@ -268,7 +331,7 @@ function savePlan(manual=false){
   if(manual)el('plan-name').focus();
   return Promise.resolve();
  }
- const plan={title,...(stageType?{stageType}:{}),items:items.map(item=>({...item}))};
+ const plan={title,...(stageType?{stageType}:{}),...(dimensions?{dimensions}:{}),items:items.map(item=>({...item}))};
  el('save-plan').disabled=true;
  status('サーバーに保存しています…');
  saving=(async()=>{
@@ -276,7 +339,7 @@ function savePlan(manual=false){
   try{
    const result=await api('/stage/plans'+(id?'/'+id:''),{plan,version});
    id=result.id;version=result.version;
-   dirty=JSON.stringify(plan)!==JSON.stringify({title:el('plan-name').value.trim(),...(stageType?{stageType}:{}),items});
+   dirty=JSON.stringify(plan)!==JSON.stringify({title:el('plan-name').value.trim(),...(stageType?{stageType}:{}),...(dimensions?{dimensions}:{}),items});
    succeeded=true;
    status(dirty?'変更を自動保存します…':'サーバーに保存しました。');
   }catch(error){

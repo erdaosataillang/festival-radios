@@ -15,7 +15,9 @@ function validatePlan(value,fail){
   return {id:item.id,kind:item.kind,name:item.name.trim(),x:item.x,y:item.y,angle:item.angle,height:item.height};
  });
  if(value.stageType!==undefined&&!stageTypes.has(value.stageType))fail(400,'ステージタイプを確認してください。');
- return {title,items,...(value.stageType?{stageType:value.stageType}:{})};
+ const dimensions=value.dimensions;
+ if(dimensions!==undefined&&(!dimensions||![dimensions.width,dimensions.depth].every(n=>Number.isInteger(n)&&n>=100&&n<=20000)))fail(400,'ステージ寸法は100〜20000 cmで入力してください。');
+ return {title,items,...(dimensions?{dimensions:{width:dimensions.width,depth:dimensions.depth}}:{}),...(value.stageType?{stageType:value.stageType}:{})};
 }
 async function handleStagePlans({req,res,body,db,user,Timestamp,now,fail}){
  const plans=db.collection('stagePlanUsers').doc(user.uid).collection('plans');
@@ -28,8 +30,8 @@ async function handleStagePlans({req,res,body,db,user,Timestamp,now,fail}){
  if(req.method==='GET'&&match){
   const doc=await plans.doc(match[1]).get();
   if(!doc.exists)fail(404,'図面が見つかりません。');
-  const {title,items,version,stageType}=doc.data();
-  res.json({id:doc.id,title,items,version,...(stageType?{stageType}:{})});
+  const {title,items,version,stageType,dimensions}=doc.data();
+  res.json({id:doc.id,title,items,version,...(dimensions?{dimensions}:{}),...(stageType?{stageType}:{})});
   return true;
  }
  if(req.method==='POST'&&(req.path==='/stage/plans'||match)){
