@@ -133,3 +133,7 @@ h2 { font-size:16px; margin:0 0 12px; }
 .object-grip-target[data-grip=rotate] { cursor:grab; }
 .equipment-item:focus-visible .object-body>rect:first-child { stroke:#7c3aed; vector-effect:non-scaling-stroke; }
 @media print { #object-controls { display:none; } }
+#object-menu { position:fixed; z-index:50; width:min(240px,calc(100vw - 16px)); max-height:calc(100dvh - 16px); overflow:auto; padding:5px; background:#fff; border:1px solid #d4d4d4; border-radius:10px; box-shadow:0 8px 24px #0002; }
+#object-menu button { width:100%; display:flex; justify-content:space-between; align-items:center; gap:8px; min-height:36px; border:0; padding:7px 10px; text-align:left; font-size:13px; }
+#object-menu kbd { color:#555; white-space:nowrap; font-size:11px; }
+@media print { #object-menu { display:none!important; } }
