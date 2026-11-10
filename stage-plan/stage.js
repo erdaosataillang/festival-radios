@@ -606,9 +606,10 @@ diagram.addEventListener('pointerdown',event=>{
  }
  if(placing){event.preventDefault();addItem(point(event));return;}
  const target=event.target.closest('[data-item]');
- if(!target){marked.clear();selectedId=null;drawControls();updateInspector();return;}
+ if(!target){marked.clear();selectedId=null;draw();updateInspector();return;}
  const toggleSelection=event.metaKey||event.shiftKey;
- if(event.target.closest('.rigging-name')&&!toggleSelection){
+ const preserveSelection=!toggleSelection&&marked.size>1&&marked.has(target.dataset.item);
+ if(event.target.closest('.rigging-name')&&!toggleSelection&&!preserveSelection){
   selectedId=target.dataset.item;
   marked.clear();
   for(const node of equipment.children)node.setAttribute('aria-pressed',String(groupOf(selected()).some(item=>item.id===node.dataset.item)));
@@ -629,14 +630,15 @@ diagram.addEventListener('pointerdown',event=>{
   if(selectedId)marked.clear();
   draw();updateInspector();return;
  }
- marked.clear();
- if(locked(item)){
+ const members=preserveSelection?[...new Set(layerSelection().flatMap(groupOf))]:groupOf(item);
+ if(preserveSelection)selectedId=null;else marked.clear();
+ if(members.some(locked)){
   target.focus({preventScroll:true});draw();updateInspector();return;
  }
- drag={pointer:event.pointerId,item,start,x:item.x,y:item.y,clientX:event.clientX,clientY:event.clientY,members:groupOf(item).map(entry=>({entry,x:entry.x,y:entry.y}))};
+ drag={pointer:event.pointerId,item,start,x:item.x,y:item.y,clientX:event.clientX,clientY:event.clientY,members:members.map(entry=>({entry,x:entry.x,y:entry.y}))};
  diagram.setPointerCapture(event.pointerId);
  target.focus({preventScroll:true});
- for(const node of equipment.children)node.setAttribute('aria-pressed',String(groupOf(selected()).some(item=>item.id===node.dataset.item)));
+ for(const node of equipment.children)node.setAttribute('aria-pressed',String(members.some(member=>member.id===node.dataset.item)));
  drawControls();updateInspector();
 });
 diagram.addEventListener('pointermove',event=>{
