@@ -276,6 +276,14 @@ function drawControls(){
   controls.append(svg('circle',{cx,cy,r:grip,class:'object-grip'}));
  }
  objectControls.append(controls);
+ if(drag?.grip==='rotate'&&drag.item===item){
+  const handle=rotateVector(0,gripY+offset,item.angle);
+  const badge=svg('g',{class:'rotation-angle',transform:`translate(${item.x+handle.x} ${item.y+handle.y}) scale(${1/Math.abs(scale)})`});
+  badge.append(svg('rect',{x:13,y:-12,width:52,height:24,rx:6}));
+  const label=svg('text',{x:39,y:4,'text-anchor':'middle'});
+  label.textContent=item.angle+'°';
+  badge.append(label);objectControls.append(badge);
+ }
 }
 function draw(){
  equipment.replaceChildren();
@@ -602,6 +610,7 @@ diagram.addEventListener('pointerdown',event=>{
   const item=selected(),{width,height}=symbolDimensions(item);
   drag={pointer:event.pointerId,item,grip,width,height,x:item.x,y:item.y,angle:item.angle,start:point(event,false)};
   diagram.setPointerCapture(event.pointerId);
+  if(grip==='rotate')drawControls();
   return;
  }
  if(placing){event.preventDefault();addItem(point(event));return;}
@@ -705,7 +714,10 @@ diagram.addEventListener('pointerup',event=>{
  });
 });
 diagram.addEventListener('lostpointercapture',()=>{
- drag=null;el('snap-guides').replaceChildren();updateInspector();scheduleSave();scheduleFloatingActions();
+ const rotating=drag?.grip==='rotate';
+ drag=null;el('snap-guides').replaceChildren();
+ if(rotating)drawControls();
+ updateInspector();scheduleSave();scheduleFloatingActions();
 });
 diagram.addEventListener('keydown',event=>{
  const node=event.target.closest('[data-item]');
