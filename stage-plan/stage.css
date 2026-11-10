@@ -225,3 +225,11 @@ h2 { font-size:16px; margin:0 0 12px; }
 
 .venue-rigging { min-width:0; margin:16px 0 0; padding:8px; border:1px solid #d4d4d4; border-radius:8px; }
 .venue-rigging legend { padding-inline:4px; font-weight:600; }
+
+.equipment-item .object-name { visibility:hidden; }
+@media screen {
+ .equipment-item:focus-visible .object-name { visibility:visible; }
+}
+@media screen and (hover:hover) {
+ .equipment-item:hover .object-name { visibility:visible; }
+}
