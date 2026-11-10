@@ -62,6 +62,10 @@ const status=message=>{el('plan-status').textContent=message;};
 const clamp=(value,min,max)=>Math.min(max,Math.max(min,value));
 let items=[],id=null,version=null,selectedId=null,placing=null,drag=null;
 const sharedToken=()=>location.hash.match(/^#share=([a-f0-9]{64})$/)?.[1];
+window.addEventListener('hashchange',event=>{
+ if(new URL(event.oldURL).hash.startsWith('#share=')||sharedToken())location.reload();
+});
+
 let sharedAccess=null;
 let dirty=false,saving=null,opening=false,saveTimer,lastPlanKey;
 let recentObjects=[],recentObjectsKey=null;
