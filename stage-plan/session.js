@@ -74,7 +74,7 @@ export function setupSession(onReady,hasChanges){
    }});
    document.body.classList.add('authenticated');
    status('ログインしました。');
-   onReady();
+   onReady(profile);
    sdk.onAuthStateChanged(auth,user=>{if(user?.uid!==profile.id)location.reload();});
   }catch(error){status(error.status?error.message:'ログインを確認できませんでした。通信状況を確認して再試行してください。',false,true);}
   finally{checking=false;}

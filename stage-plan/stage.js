@@ -1,4 +1,4 @@
-import {api,setupSession} from './session.js?v=source-svg-zoom-1';
+import {api,setupSession} from './session.js?v=rulers-drop-resume-1';
 import {equipmentShape} from './equipment-symbols.js?v=2';
 
 const stageTypes={
@@ -61,7 +61,11 @@ const equipment=el('equipment');
 const status=message=>{el('plan-status').textContent=message;};
 const clamp=(value,min,max)=>Math.min(max,Math.max(min,value));
 let items=[],id=null,version=null,selectedId=null,placing=null,drag=null;
-let dirty=false,saving=null,opening=false,saveTimer;
+let dirty=false,saving=null,opening=false,saveTimer,lastPlanKey;
+function rememberPlan(){
+ if(!lastPlanKey||!id)return;
+ try{localStorage.setItem(lastPlanKey,id);}catch{}
+}
 let previous,undoStack=[],redoStack=[];
 const snapshot=()=>({title:el('plan-name').value,items:items.map(item=>({...item})),selectedId,dimensions,venue,assets,background});
 function scheduleSave(){
@@ -264,6 +268,48 @@ function addItem(position){
  if(item.kind==='annotation-text'){showToolPanel('properties');el('item-name').focus();el('item-name').select();}
 }
 
+function bindPaletteDrag(button,handle,kind,label){
+ let gesture,suppressClick=false;
+ button.addEventListener('pointerdown',event=>{
+  suppressClick=false;
+  if(event.button!==0||event.pointerType!=='mouse'&&!handle.contains(event.target))return;
+  gesture={pointer:event.pointerId,x:event.clientX,y:event.clientY,epoch:planEpoch,ghost:null};
+  button.setPointerCapture(event.pointerId);
+ });
+ const isOverDiagram=event=>diagram.contains(document.elementFromPoint(event.clientX,event.clientY));
+ button.addEventListener('pointermove',event=>{
+  if(gesture?.pointer!==event.pointerId)return;
+  if(!gesture.ghost&&Math.hypot(event.clientX-gesture.x,event.clientY-gesture.y)<6)return;
+  if(!gesture.ghost){
+   gesture.ghost=document.createElement('div');
+   gesture.ghost.className='palette-drag-ghost';
+   gesture.ghost.textContent=label;
+   document.body.append(gesture.ghost);
+  }
+  gesture.ghost.style.left=event.clientX+12+'px';
+  gesture.ghost.style.top=event.clientY+12+'px';
+  diagram.classList.toggle('drop-ready',isOverDiagram(event));
+ });
+ const cleanup=()=>{
+  gesture?.ghost?.remove();
+  gesture=null;
+  diagram.classList.remove('drop-ready');
+ };
+ button.addEventListener('pointerup',event=>{
+  if(gesture?.pointer!==event.pointerId)return;
+  suppressClick=!!gesture.ghost;
+  if(suppressClick&&gesture.epoch===planEpoch&&isOverDiagram(event)){
+   setPlacement(kind);
+   addItem(point(event));
+  }
+  cleanup();
+ });
+ button.addEventListener('lostpointercapture',cleanup);
+ button.onclick=()=>{
+  if(suppressClick){suppressClick=false;return;}
+  setPlacement(placing===kind?null:kind);
+ };
+}
 function renderPalette(){
  const palette=el('palette'),category=el('equipment-category').value;
  const query=el('equipment-search').value.trim().normalize('NFKC').toLowerCase();
@@ -283,8 +329,11 @@ function renderPalette(){
   if(tool.asset)icon.append(svg('image',{href:tool.asset.data,x:-36,y:-36,width:72,height:72}));
   else if(tool.source)icon.append(svg('rect',{x:-24,y:-24,width:48,height:48,fill:'none',stroke:'currentColor','stroke-width':5}));
   else icon.innerHTML=tool.shape;
-  button.append(icon,document.createTextNode(tool.label));
-  button.onclick=()=>setPlacement(placing===kind?null:kind);
+  const name=document.createElement('span'),handle=document.createElement('span');
+  name.textContent=tool.label;
+  handle.className='palette-grip';handle.textContent='⠿';handle.setAttribute('aria-hidden','true');
+  button.append(icon,name,handle);
+  bindPaletteDrag(button,handle,kind,tool.label);
   palette.append(button);
  }
 }
@@ -573,6 +622,32 @@ el('remove-item').onclick=()=>{
  selectedId=null;changed();draw();updateInspector();
 };
 
+const KEN_CM=181.8;
+function drawRulers(frame){
+ const rulers=el('diagram-rulers');
+ rulers.replaceChildren();
+ if(!dimensions)return;
+ function ruler({origin,unit,baseline,direction,label}){
+  const left=12,right=988;
+  rulers.append(svg('rect',{x:0,y:direction<0?0:625,width:1000,height:25,class:'ruler-strip'}));
+  rulers.append(svg('line',{x1:left,y1:baseline,x2:right,y2:baseline,class:'ruler-tick'}));
+  const interval=unit*frame.scale;
+  const labelEvery=Math.max(1,Math.ceil(43/interval));
+  const subdivisions=interval>=40?4:interval>=14?2:1;
+  for(let index=Math.ceil((left-origin)/interval*subdivisions);index<=(right-origin)/interval*subdivisions;index++){
+   const value=index/subdivisions,x=origin+value*interval;
+   const major=index%subdivisions===0&&value%labelEvery===0;
+   rulers.append(svg('line',{x1:x,y1:baseline,x2:x,y2:baseline+direction*(major?7:4),class:'ruler-tick'}));
+   if(major){
+    const text=svg('text',{x:clamp(x,19,981),y:direction<0?12:646,class:'ruler-label'});
+    text.textContent=label(value);
+    rulers.append(text);
+   }
+  }
+ }
+ ruler({origin:frame.x,unit:100,baseline:23,direction:-1,label:value=>value+' m'});
+ ruler({origin:frame.x+frame.w/2,unit:KEN_CM,baseline:626,direction:1,label:value=>value===0?'0':Math.abs(value)+'間'});
+}
 function drawStage(){
  const image=el('diagram-background'),asset=assets.find(item=>item.id===background);
  image.toggleAttribute('hidden',!asset);
@@ -581,7 +656,9 @@ function drawStage(){
  if(asset)image.setAttribute('href',asset.data);
  else image.removeAttribute('href');
  const template=stageTypes[stageType]||stageTypes.hall;
- const {x,y,w:width,h:height,scale}=geometry();
+ const frame=geometry();
+ const {x,y,w:width,h:height,scale}=frame;
+ drawRulers(frame);
  const boundary=el('stage-boundary'),outline=el('stage-outline');
  boundary.toggleAttribute('hidden',!!venue);
  outline.toggleAttribute('hidden',!venue);
@@ -615,8 +692,8 @@ function drawStage(){
  line(x+width+21,y,x+width+21,y+height);
  line(x+width+14,y,x+width+28,y);line(x+width+14,y+height,x+width+28,y+height);
  label(x+width+75,y+height/2,dimensions.depth+' cm');
- line(42,610,42+100*scale,610);line(42,604,42,616);line(42+100*scale,604,42+100*scale,616);
- label(42+50*scale,635,'100 cm');
+ line(42,589,42+100*scale,589);line(42,583,42,595);line(42+100*scale,583,42+100*scale,595);
+ label(42+50*scale,612,'100 cm');
 
 }
 for(const field of ['x','y']){
@@ -799,6 +876,7 @@ function loadPlan(plan){
  el('plan-welcome').hidden=true;el('plan-editor').hidden=false;
  drawStage();
  id=plan.id??null;version=plan.version??null;
+ rememberPlan();
  items=plan.items;el('plan-name').value=plan.title;
  clearTimeout(saveTimer);
  selectedId=null;setPlacement(null);dirty=false;
@@ -846,6 +924,7 @@ function savePlan(manual=false){
   try{
    const result=await api('/stage/plans'+(id?'/'+id:''),{plan,version});
    id=result.id;version=result.version;
+   rememberPlan();
    dirty=JSON.stringify(plan)!==JSON.stringify({title:el('plan-name').value.trim(),...(stageType?{stageType}:{}),...(dimensions?{dimensions}:{}),...(venue?{venue}:{}),assets,background,items});
    succeeded=true;
    status(dirty?'変更を自動保存します…':'サーバーに保存しました。');
@@ -890,10 +969,22 @@ el('open-list').onclick=async()=>{
 el('welcome-open').onclick=()=>el('open-list').click();
 el('close-list').onclick=()=>el('plan-picker').close();
 window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue='';}});
-setupSession(async()=>{
+setupSession(async profile=>{
+ lastPlanKey=profile?.id?'stage-plan-last:'+profile.id:null;
  el('workspace').hidden=false;
  el('plan-welcome').hidden=false;
- try{await loadCatalog();typePicker.showModal();}
+ try{
+  await loadCatalog();
+  let last=null;
+  try{if(lastPlanKey)last=localStorage.getItem(lastPlanKey);}catch{}
+  if(/^[A-Za-z0-9]{20}$/.test(last||'')){
+   try{loadPlan(await api('/stage/plans/'+last));return;}
+   catch(error){
+    if(error.status===404)try{localStorage.removeItem(lastPlanKey);}catch{}
+   }
+  }
+  typePicker.showModal();
+ }
  catch(error){
   const message=document.createElement('p');
   message.setAttribute('role','alert');

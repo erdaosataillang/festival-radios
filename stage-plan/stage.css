@@ -193,3 +193,12 @@ h2 { font-size:16px; margin:0 0 12px; }
  }
 }
 @media print { .object-bar,.canvas-footer { display:none!important; } }
+#diagram-rulers { pointer-events:none; }
+.ruler-strip { fill:#fff; fill-opacity:.96; }
+.ruler-tick { stroke:#657187; stroke-width:1; vector-effect:non-scaling-stroke; }
+.ruler-label { fill:#344054; font-size:11px; text-anchor:middle; font-weight:600; }
+.palette button { cursor:grab; }
+.palette button > span:first-of-type { min-width:0; flex:1; overflow-wrap:anywhere; }
+.palette-grip { margin-inline-start:auto; padding:4px; color:#6b7280; cursor:grab; touch-action:none; }
+.palette-drag-ghost { position:fixed; pointer-events:none; z-index:1000; padding:6px 10px; border:1px solid #7c3aed; background:#fff; color:#4c1d95; border-radius:6px; font-size:13px; box-shadow:0 3px 8px #0002; }
+#diagram.drop-ready { outline:2px solid #7c3aed; outline-offset:-2px; }

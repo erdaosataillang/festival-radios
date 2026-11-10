@@ -10,8 +10,8 @@
 <link rel="stylesheet" href="../assets/auth-gate.css?v=1">
 <link rel="stylesheet" href="../assets/official-theme.css?v=1">
 <link rel="stylesheet" href="../assets/astryx-ui.css?v=2">
-<link rel="stylesheet" href="stage.css?v=object-labels-1">
-<script type="module" src="stage.js?v=object-labels-1"></script>
+<link rel="stylesheet" href="stage.css?v=rulers-drop-resume-1">
+<script type="module" src="stage.js?v=rulers-drop-resume-1"></script>
 </head>
 <body>
 <header><span class="header-title">ステージ図面</span><a class="header-brand app-home" href="https://app.urakatabu.com/">アプリ一覧</a><urakata-account></urakata-account></header>
@@ -47,7 +47,7 @@
  <aside class="panel equipment-panel">
   <section class="stage-dimensions" data-tool-panel="venue" hidden><h2>ステージ寸法</h2>
 <form id="stage-dimensions"><label>幅（cm）<input id="stage-width" type="number" min="100" max="20000" step="1" required></label><label>奥行き（cm）<input id="stage-depth" type="number" min="100" max="20000" step="1" required></label><button type="submit">寸法を適用</button></form><button id="edit-venue" type="button">舞台形状・幕を設定</button></section>
-<section data-tool-panel="materials"><h2>機材を追加</h2>
+<section data-tool-panel="materials"><h2>オブジェクト</h2>
   <div class="equipment-library">
    <label for="equipment-category">カテゴリ</label>
    <select id="equipment-category"><option value="quick">よく使う機材</option><option value="speakers">スピーカー</option><option value="instruments">楽器</option><option value="audio">音響機器</option><option value="lighting">照明</option><option value="stage">舞台備品</option><option value="imported">読み込んだオブジェクト</option><option value="all">すべて</option></select>
@@ -95,7 +95,7 @@
    <text id="stage-rear" x="500" y="119" class="diagram-label">ステージ奥</text>
    <text id="stage-front" x="500" y="397" class="diagram-label">ステージ前</text>
    <text id="stage-audience" x="500" y="580" class="diagram-label">客席側</text>
-   <g id="center-line" aria-hidden="true"><line x1="500" y1="35" x2="500" y2="600" stroke="#56606b" stroke-dasharray="14 6 2 6"/><text x="500" y="620" class="diagram-label">CL</text></g><g id="dimension-lines" aria-hidden="true"></g><g id="curtain-lines"></g><g id="equipment"></g><g id="line-draft" aria-hidden="true"></g><g id="object-controls" aria-hidden="true"></g>
+   <g id="center-line" aria-hidden="true"><line x1="500" y1="35" x2="500" y2="600" stroke="#56606b" stroke-dasharray="14 6 2 6"/><text x="500" y="620" class="diagram-label">CL</text></g><g id="dimension-lines" aria-hidden="true"></g><g id="curtain-lines"></g><g id="equipment"></g><g id="line-draft" aria-hidden="true"></g><g id="object-controls" aria-hidden="true"></g><g id="diagram-rulers" aria-label="図面のルーラー"></g>
   </svg></div><div class="canvas-footer"><span>スペースキーを押しながらドラッグで移動</span><div class="zoom-controls" aria-label="図面の拡大・縮小"><button id="zoom-out" type="button" aria-label="縮小">−</button><button id="zoom-reset" type="button" aria-label="100%に戻す">100%</button><button id="zoom-in" type="button" aria-label="拡大">＋</button></div></div>
   <section class="equipment-schedule" aria-labelledby="schedule-title"><h2 id="schedule-title">機材表</h2><div id="schedule-tables"></div></section>
   <p class="hint">オブジェクトをドラッグして移動。四隅でサイズ変更、下のハンドルで回転できます。</p>
