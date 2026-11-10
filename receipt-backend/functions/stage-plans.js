@@ -44,8 +44,11 @@ function validatePlan(value,fail){
   if(item.size!==undefined&&(!Number.isInteger(item.size)||item.size<1||item.size>20000))fail(400,'記号の幅を確認してください。');
   if(item.layerId!==undefined&&!layerIds.has(item.layerId))fail(400,'配置先のレイヤーを確認してください。');
   if(item.groupId!==undefined&&(typeof item.groupId!=='string'||!uuid.test(item.groupId)))fail(400,'グループを確認してください。');
+  if(item.color!==undefined&&(typeof item.color!=='string'||!/^#[0-9a-f]{6}$/i.test(item.color)))fail(400,'色を確認してください。');
+  if(item.opacity!==undefined&&(!Number.isInteger(item.opacity)||item.opacity<10||item.opacity>100))fail(400,'透明度を確認してください。');
+  if([item.flipX,item.locked].some(flag=>flag!==undefined&&typeof flag!=='boolean'))fail(400,'オブジェクトの設定を確認してください。');
   seen.add(item.id);
-  return {id:item.id,kind:item.kind,name:item.name.trim(),x:item.x,y:item.y,angle:item.angle,height:item.height,...(item.layerId?{layerId:item.layerId}:{}),...(item.groupId?{groupId:item.groupId}:{}),...(item.source?{source:item.source}:{}),...(item.size?{size:item.size}:{}),...(item.quantity?{quantity:item.quantity}:{}),...(item.kind==='imported-svg'?{assetId:item.assetId}:{})};
+  return {id:item.id,kind:item.kind,name:item.name.trim(),x:item.x,y:item.y,angle:item.angle,height:item.height,...(item.color?{color:item.color}:{}),...(item.opacity!==undefined?{opacity:item.opacity}:{}),...(item.flipX?{flipX:true}:{}),...(item.locked?{locked:true}:{}),...(item.layerId?{layerId:item.layerId}:{}),...(item.groupId?{groupId:item.groupId}:{}),...(item.source?{source:item.source}:{}),...(item.size?{size:item.size}:{}),...(item.quantity?{quantity:item.quantity}:{}),...(item.kind==='imported-svg'?{assetId:item.assetId}:{})};
  });
  if(value.stageType!==undefined&&!stageTypes.has(value.stageType))fail(400,'ステージタイプを確認してください。');
  const dimensions=value.dimensions;

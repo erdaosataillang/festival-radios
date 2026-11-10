@@ -240,3 +240,16 @@ h2 { font-size:16px; margin:0 0 12px; }
 @media print { .viewport-ruler { display:none; } }
 
 .equipment-item .rigging-name { font-size:12px; text-anchor:start; }
+
+.object-bar { min-width:0; padding:8px; background:#f4f5f8; }
+#object-actions:not([hidden]) {
+ display:flex; align-items:center; gap:5px; max-width:100%; width:max-content;
+ overflow-x:auto; padding:4px 7px; background:#fff; border:1px solid #dfe2ec;
+ border-radius:14px; box-shadow:0 2px 6px #1d253315;
+}
+#object-actions > * { flex:none; white-space:nowrap; }
+#object-actions button[aria-pressed="true"] { background:#ede9fe; color:#5b21b6; }
+.toolbar-field { display:flex; align-items:center; gap:5px; padding-inline:5px; font-size:12px; }
+.toolbar-field input[type="color"] { width:34px; height:34px; padding:2px; }
+.toolbar-field input[type="range"] { width:68px; min-width:0; }
+#replace-object select { display:block; width:100%; margin-block:6px 12px; }

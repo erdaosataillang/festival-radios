@@ -72,6 +72,12 @@ const marked=new Set();
 const layerOf=item=>item.layerId??'base';
 const visible=item=>layers.find(layer=>layer.id===layerOf(item))?.visible!==false;
 const groupOf=item=>item?.groupId?items.filter(entry=>entry.groupId===item.groupId):item?[item]:[];
+const locked=item=>groupOf(item).some(entry=>entry.locked);
+let savedPlan=null;
+const planPayload=()=>({title:el('plan-name').value.trim(),layers,
+ ...(stageType?{stageType}:{}),...(dimensions?{dimensions}:{}),...(venue?{venue}:{}),assets,background,
+ items:items.map(item=>({...item}))});
+const hasUnsavedChanges=()=>JSON.stringify(planPayload())!==savedPlan;
 const orderedItems=()=>layers.flatMap(layer=>items.filter(item=>layerOf(item)===layer.id));
 const snapshot=()=>({layers,title:el('plan-name').value,items:items.map(item=>({...item})),selectedId,dimensions,venue,assets,background});
 function scheduleSave(){
@@ -80,17 +86,19 @@ function scheduleSave(){
 }
 const selected=()=>items.find(item=>item.id===selectedId);
 function changed(){
+ const next=snapshot();
+ if(id&&previous&&JSON.stringify({...next,selectedId:null})===JSON.stringify({...previous,selectedId:null}))return;
  if(previous&&(!drag||!drag.undoRecorded)){
   undoStack.push(previous);
   if(undoStack.length>60)undoStack.shift();
   redoStack=[];
   if(drag)drag.undoRecorded=true;
  }
- previous=snapshot();
+ previous=next;
  el('undo-edit').disabled=!undoStack.length;
  el('redo-edit').disabled=!redoStack.length;
- dirty=true;
- status('変更を自動保存します…');
+ dirty=hasUnsavedChanges();
+ status(dirty?'変更を自動保存します…':'保存済みです。');
  scheduleSave();
 }
 function restoreChange(from,to){
@@ -100,8 +108,8 @@ function restoreChange(from,to){
  const state=from.pop();
  layers=state.layers;marked.clear();dimensions=state.dimensions;venue=state.venue;assets=state.assets;background=state.background;setPlacement(null);renderPalette();drawStage();items=state.items;selectedId=state.selectedId;el('plan-name').value=state.title;
  previous=snapshot();
- dirty=true;draw();updateInspector();scheduleSave();
- status('変更を自動保存します…');
+ dirty=hasUnsavedChanges();draw();updateInspector();scheduleSave();
+ status(dirty?'変更を自動保存します…':'保存済みです。');
  if(focused&&selectedId)equipment.querySelector('[data-item="'+selectedId+'"]')?.focus({preventScroll:true});
 }
 
@@ -126,6 +134,7 @@ function updateInspector(){
  const item=selected();
  el('empty-selection').hidden=!!item;
  el('item-fields').hidden=!item;
+ el('item-fields').disabled=locked(item);
  if(!item)return;
  el('item-name').value=item.name;
  el('item-name-label').textContent=item.kind==='annotation-text'?'テキスト':isRigging(item)?'左袖の表示名':'機材名';
@@ -207,7 +216,18 @@ function drawControls(){
  el('undo-edit').disabled=!undoStack.length;
  el('redo-edit').disabled=!redoStack.length;
  if(!item)return;
- el('selected-object-name').textContent=item.name||toolFor(item.assetId||item.kind).label;
+ const fixed=locked(item);
+ const lock=el('quick-lock');
+ lock.setAttribute('aria-pressed',String(fixed));
+ lock.textContent=fixed?'ロック解除':'ロック';
+ for(const id of ['quick-properties','quick-position','quick-color','quick-opacity','quick-duplicate','quick-menu'])
+  el(id).disabled=fixed;
+ el('quick-replace').disabled=fixed||isAnnotation(item)||isRigging(item);
+ el('quick-flip').disabled=fixed||isAnnotation(item)||isRigging(item);
+ el('quick-flip').setAttribute('aria-pressed',String(!!item.flipX));
+ el('quick-color').value=item.color??toolFor(item.assetId||item.kind).color??'#474747';
+ el('quick-opacity').value=item.opacity??100;
+ if(fixed)return;
  const {width,height}=symbolDimensions(item);
  const x=width/2,y=height/2;
  const scale=diagram.getScreenCTM()?.a||1;
@@ -232,21 +252,26 @@ function draw(){
   const tool=toolFor(item.assetId||item.kind);
   const group=svg('g',{tabindex:0,role:'button','aria-label':item.name||tool.label,
    'aria-pressed':String(marked.has(item.id)||groupOf(selected()).includes(item)),class:'equipment-item','data-item':item.id});
-  const body=svg('g',{class:'object-body',fill:tool.color,color:tool.color});
+  const body=svg('g',{class:'object-body',fill:item.color??tool.color,color:item.color??tool.color});
   const imported=tool.asset||tool.source;
   const height=imported?90/imported.ratio:item.kind==='annotation-line'||tool.group==='rigging'?10:item.kind==='annotation-text'?textHeight(item):80;
   body.append(svg('rect',{x:-45,y:-height/2,width:90,height,fill:'transparent'}));
-  const symbol=svg('g',{});
+  const symbol=svg('g',{opacity:(item.opacity??100)/100,transform:item.flipX?'scale(-1 1)':'scale(1)'});
   if(imported){
    const image=svg('image',{x:-45,y:-height/2,width:90,height});
-   symbol.append(image);
+   if(item.color){
+    const maskId='object-color-'+item.id;
+    const mask=svg('mask',{id:maskId,style:'mask-type:alpha',maskUnits:'userSpaceOnUse',x:-45,y:-height/2,width:90,height});
+    mask.append(image);
+    symbol.append(mask,svg('rect',{x:-45,y:-height/2,width:90,height,fill:item.color,mask:'url(#'+maskId+')'}));
+   }else symbol.append(image);
    if(tool.asset)image.setAttribute('href',tool.asset.data);
    else loadSourceImage(item.kind).then(data=>image.setAttribute('href',data)).catch(()=>{if(image.isConnected)status('オブジェクトを読み込めませんでした。図面を開き直してください。');});
   }else if(item.kind==='annotation-line'){
-   symbol.append(svg('line',{x1:-45,y1:0,x2:45,y2:0,stroke:tool.color,'stroke-width':2,'vector-effect':'non-scaling-stroke'}));
+   symbol.append(svg('line',{x1:-45,y1:0,x2:45,y2:0,stroke:item.color??tool.color,'stroke-width':2,'vector-effect':'non-scaling-stroke'}));
   }else if(item.kind==='annotation-text'){
    const lines=textLines(item);
-   const text=svg('text',{x:-43,y:0,class:'annotation-text'});
+   const text=svg('text',{x:-43,y:0,class:'annotation-text',...(item.color?{style:'fill:'+item.color}:{})});
    lines.forEach((line,index)=>{
     const span=svg('tspan',{x:-43,y:(index-(lines.length-1)/2)*8+2.5});
     span.textContent=line;text.append(span);
@@ -371,6 +396,7 @@ el('equipment-category').onchange=renderPalette;
 el('equipment-search').oninput=renderPalette;
 
 function editText(item){
+ if(locked(item))return;
  const group=equipment.querySelector('[data-item="'+item.id+'"]');
  if(!group||group.querySelector('textarea'))return;
  const body=group.querySelector('.object-body');
@@ -448,7 +474,7 @@ diagram.addEventListener('pointerdown',event=>{
   return;
  }
  const grip=event.target.closest('[data-grip]')?.dataset.grip;
- if(grip&&selected()){
+ if(grip&&selected()&&!locked(selected())){
   event.preventDefault();
   const item=selected(),{width,height}=symbolDimensions(item);
   drag={pointer:event.pointerId,item,grip,width,height,x:item.x,y:item.y,angle:item.angle,start:point(event,false)};
@@ -468,6 +494,9 @@ diagram.addEventListener('pointerdown',event=>{
   draw();updateInspector();return;
  }
  marked.clear();
+ if(locked(item)){
+  target.focus({preventScroll:true});draw();updateInspector();return;
+ }
  drag={pointer:event.pointerId,item,start,x:item.x,y:item.y,clientX:event.clientX,clientY:event.clientY,members:groupOf(item).map(entry=>({entry,x:entry.x,y:entry.y}))};
  diagram.setPointerCapture(event.pointerId);
  target.focus({preventScroll:true});
@@ -537,7 +566,7 @@ diagram.addEventListener('keydown',event=>{
  selectedId=node.dataset.item;
  const item=selected();
  if(event.key==='Enter'&&item.kind==='annotation-text'){editText(item);return;}
- if(direction){
+ if(direction&&!locked(item)){
   const step=dimensions?(event.shiftKey?10:1)*geometry().scale:(event.shiftKey?25:5);
   const members=groupOf(item);
   const dx=clamp(step*direction[0],Math.max(...members.map(entry=>-entry.x)),Math.min(...members.map(entry=>1000-entry.x)));
@@ -575,12 +604,60 @@ el('undo-edit').onclick=()=>restoreChange(undoStack,redoStack);
 el('redo-edit').onclick=()=>restoreChange(redoStack,undoStack);
 el('quick-duplicate').onclick=duplicateSelected;
 function editSelected(){
- const item=selected();if(!item)return;
+ const item=selected();if(!item||locked(item))return;
  if(item.kind==='annotation-text'){editText(item);return;}
  showToolPanel('properties');
  if(item.kind==='annotation-line')el('item-angle').focus();
  else{el('item-name').focus();el('item-name').select();}
 }
+function editToolbarItem(update){
+ const item=selected();
+ if(!item||locked(item))return;
+ update(item);changed();draw();updateInspector();
+}
+el('quick-lock').onclick=()=>{
+ const item=selected();
+ if(!item)return;
+ const fixed=locked(item);
+ for(const member of groupOf(item)){
+  if(fixed)delete member.locked;else member.locked=true;
+ }
+ changed();draw();updateInspector();
+};
+el('quick-color').onchange=event=>editToolbarItem(item=>{item.color=event.target.value;});
+el('quick-opacity').onchange=event=>editToolbarItem(item=>{item.opacity=Number(event.target.value);});
+el('quick-flip').onclick=()=>editToolbarItem(item=>{
+ if(item.flipX)delete item.flipX;else item.flipX=true;
+});
+el('quick-position').onclick=()=>{
+ showToolPanel('properties');
+ el(dimensions?'item-x':'item-angle').focus();
+};
+const replaceDialog=el('replace-object');
+let replaceId=null;
+function filterReplacements(){
+ const query=el('replace-search').value.trim().normalize('NFKC').toLowerCase();
+ const options=Object.entries(tools).filter(([,tool])=>tool.source&&tool.label.normalize('NFKC').toLowerCase().includes(query));
+ el('replace-kind').replaceChildren(...options.map(([key,tool])=>new Option(tool.label,key)));
+}
+el('replace-search').oninput=filterReplacements;
+el('quick-replace').onclick=()=>{
+ replaceId=selected()?.id;
+ if(!replaceId)return;
+ replaceDialog.returnValue='';
+ el('replace-search').value='';filterReplacements();replaceDialog.showModal();
+ el('replace-search').focus();
+};
+replaceDialog.addEventListener('close',()=>{
+ if(replaceDialog.returnValue!=='apply'||selected()?.id!==replaceId)return;
+ const kind=el('replace-kind').value,tool=tools[kind];
+ if(!tool?.source)return;
+ editToolbarItem(item=>{
+  if(item.kind===kind)return;
+  item.kind=kind;item.name=tool.label;item.size=tool.source.size;
+  delete item.assetId;
+ });
+});
 el('quick-properties').onclick=editSelected;
 el('quick-menu').onclick=()=>{
  const button=el('quick-menu'),box=button.getBoundingClientRect();
@@ -746,6 +823,7 @@ el('remove-background').onclick=()=>{
 };
 
 el('remove-item').onclick=()=>{
+ if(locked(selected()))return;
  const removed=groupOf(selected());
  items=items.filter(item=>!removed.includes(item));
  marked.clear();
@@ -995,25 +1073,25 @@ el('add-layer').onsubmit=event=>{
 el('move-layer').onchange=event=>{
  const id=event.target.value;
  if(!id)return;
- for(const item of new Set(layerSelection().flatMap(groupOf)))item.layerId=id;
+ for(const item of new Set(layerSelection().flatMap(groupOf)))if(!locked(item))item.layerId=id;
  if(selected()&&!visible(selected()))selectedId=null;
  refreshLayers();
 };
 el('group-items').onclick=()=>{
  const members=[...new Set(layerSelection().flatMap(groupOf))];
- if(members.length<2)return;
+ if(members.length<2||members.some(locked))return;
  const groupId=crypto.randomUUID();
  for(const item of members)item.groupId=groupId;
  marked.clear();selectedId=members.find(visible)?.id??null;refreshLayers();
 };
 el('ungroup-items').onclick=()=>{
- for(const item of layerSelection().flatMap(groupOf))delete item.groupId;
+ for(const item of layerSelection().flatMap(groupOf))if(!locked(item))delete item.groupId;
  marked.clear();refreshLayers();
 };
 
 function duplicateSelected(){
  const members=groupOf(selected());
- if(!members.length)return;
+ if(!members.length||locked(selected()))return;
  if(items.length+members.length>200){status('図面に配置できる項目は200件までです。');return;}
  const offset=dimensions?20*geometry().scale:12;
  const dx=Math.min(offset,...members.map(item=>1000-item.x));
@@ -1040,7 +1118,8 @@ function closeObjectMenu(restoreFocus=false){
 function showObjectMenu(x,y,anchor){
  menuAnchor=anchor;
  for(const button of objectMenu.querySelectorAll('[data-action]'))
-  button.hidden=button.dataset.action==='reset'?!!selected():!selected();
+  button.hidden=button.dataset.action==='reset'?!!selected():!selected()||locked(selected());
+ if(selected()&&locked(selected()))return;
  objectMenu.hidden=false;
  const width=objectMenu.offsetWidth,height=objectMenu.offsetHeight;
  objectMenu.style.left=Math.max(8,Math.min(x,innerWidth-width-8))+'px';
@@ -1077,7 +1156,7 @@ objectMenu.addEventListener('click',event=>{
  closeObjectMenu(true);
  if(action==='reset'){setZoom(100);return;}
  const item=selected();
- if(!item)return;
+ if(!item||locked(item))return;
  if(action==='properties')editSelected();else if(action==='duplicate')duplicateSelected();
  else if(action==='delete')el('remove-item').click();
  else{
@@ -1137,6 +1216,7 @@ function loadPlan(plan){
  items=plan.items;el('plan-name').value=plan.title;
  clearTimeout(saveTimer);
  selectedId=null;setPlacement(null);dirty=false;
+ savedPlan=id?JSON.stringify(planPayload()):null;
  previous=snapshot();undoStack=[];redoStack=[];
  draw();updateInspector();
  status(id?'保存した図面を開きました。':'新しい図面です。');
@@ -1166,14 +1246,14 @@ el('close-stage-types').onclick=()=>typePicker.close();
 function savePlan(manual=false){
  clearTimeout(saveTimer);
  if(saving)return saving;
- if(opening||(!dirty&&!manual))return Promise.resolve();
+ if(opening||!dirty||!hasUnsavedChanges())return Promise.resolve();
  const title=el('plan-name').value.trim();
  if(!title){
   status('図面名を入力すると自動保存します。');
   if(manual)el('plan-name').focus();
   return Promise.resolve();
  }
- const plan={title,layers,...(stageType?{stageType}:{}),...(dimensions?{dimensions}:{}),...(venue?{venue}:{}),assets,background,items:items.map(item=>({...item}))};
+ const plan=planPayload(),serialized=JSON.stringify(plan);
  el('save-plan').disabled=true;
  status('サーバーに保存しています…');
  saving=(async()=>{
@@ -1182,7 +1262,8 @@ function savePlan(manual=false){
    const result=await api('/stage/plans'+(id?'/'+id:''),{plan,version});
    id=result.id;version=result.version;
    rememberPlan();
-   dirty=JSON.stringify(plan)!==JSON.stringify({title:el('plan-name').value.trim(),...(stageType?{stageType}:{}),...(dimensions?{dimensions}:{}),...(venue?{venue}:{}),assets,background,items});
+   savedPlan=serialized;
+   dirty=hasUnsavedChanges();
    succeeded=true;
    status(dirty?'変更を自動保存します…':'サーバーに保存しました。');
   }catch(error){

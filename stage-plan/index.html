@@ -10,8 +10,8 @@
 <link rel="stylesheet" href="../assets/auth-gate.css?v=1">
 <link rel="stylesheet" href="../assets/official-theme.css?v=1">
 <link rel="stylesheet" href="../assets/astryx-ui.css?v=2">
-<link rel="stylesheet" href="stage.css?v=rigging-labels-1">
-<script type="module" src="stage.js?v=rigging-labels-1"></script>
+<link rel="stylesheet" href="stage.css?v=object-toolbar-1">
+<script type="module" src="stage.js?v=object-toolbar-1"></script>
 </head>
 <body>
 <header><span class="header-title">ステージ図面</span><a class="header-brand app-home" href="https://app.urakatabu.com/">アプリ一覧</a><urakata-account></urakata-account></header>
@@ -96,7 +96,17 @@
 <button id="toggle-grid" type="button" aria-pressed="true">グリッド</button><button id="import-background" type="button">下絵を読み込む（SVG）</button><button id="remove-background" type="button" hidden>下絵を外す</button><input id="svg-background-file" type="file" accept=".svg,image/svg+xml" hidden></div></div>
 <div class="object-bar" aria-label="選択項目の操作">
   <p id="canvas-hint">図面上のオブジェクトを選択してください。</p>
-  <div id="object-actions" hidden><strong id="selected-object-name"></strong><button id="quick-properties" type="button">編集</button><button id="quick-duplicate" type="button">複製</button><button id="quick-menu" type="button" aria-haspopup="menu" aria-label="その他の操作">···</button></div>
+  <div id="object-actions" role="group" aria-label="オブジェクトの編集" hidden>
+   <button id="quick-properties" type="button">編集</button>
+   <button id="quick-replace" type="button">置き換え</button>
+   <label class="toolbar-field" data-unlocked>色 <input id="quick-color" type="color" aria-label="色"></label>
+   <label class="toolbar-field" data-unlocked>透明度 <input id="quick-opacity" type="range" min="10" max="100" value="100" aria-label="透明度"></label>
+   <button id="quick-flip" type="button" aria-pressed="false">左右反転</button>
+   <button id="quick-position" type="button">配置</button>
+   <button id="quick-lock" type="button" aria-pressed="false">ロック</button>
+   <button id="quick-duplicate" type="button">複製</button>
+   <button id="quick-menu" type="button" aria-haspopup="menu" aria-label="その他の操作">···</button>
+  </div>
 </div>
 <h1 id="print-title"></h1>
   <svg id="meter-ruler" class="viewport-ruler" aria-label="メートル目盛り"></svg>
@@ -115,11 +125,19 @@
   <section class="equipment-schedule" aria-labelledby="schedule-title"><h2 id="schedule-title">機材表</h2><div id="schedule-tables"></div></section>
   <p class="hint">オブジェクトをドラッグして移動。四隅でサイズ変更、下のハンドルで回転できます。</p>
   <details class="hint"><summary>ショートカットキー</summary>
-   <p>⌘ / Ctrl + S　今すぐ保存<br>⌘ / Ctrl + D　選択中のオブジェクトを複製<br>⌘ / Ctrl + Z　元に戻す<br>⌘ / Ctrl + Shift + Z または Ctrl + Y　やり直す<br>1〜5　機材の種類を選択<br>矢印キー　機材を移動（Shiftで大きく移動）<br>Delete / Backspace　選択したオブジェクトを削除<br>＋ / −　図面の拡大・縮小<br>右クリック / Shift + F10　編集メニュー<br>Esc　配置モードを解除</p>
+   <p>⌘ / Ctrl + S　今すぐ保存<br>⌘ / Ctrl + D　選択中のオブジェクトを複製<br>⌘ / Ctrl + Z　元に戻す<br>⌘ / Ctrl + Shift + Z または Ctrl + Y　やり直す<br>矢印キー　機材を移動（Shiftで大きく移動）<br>Delete / Backspace　選択したオブジェクトを削除<br>＋ / −　図面の拡大・縮小<br>右クリック / Shift + F10　編集メニュー<br>Esc　配置モードを解除</p>
   </details>
  </section>
 </div>
 </div></main>
+<dialog id="replace-object">
+ <form method="dialog">
+  <h2>オブジェクトの置き換え</h2>
+  <label for="replace-search">素材を検索</label><input id="replace-search" type="search">
+  <label for="replace-kind">素材</label><select id="replace-kind" required></select>
+  <button value="cancel" formnovalidate>キャンセル</button><button value="apply">置き換え</button>
+ </form>
+</dialog>
 <dialog id="stage-type-picker" aria-labelledby="stage-type-title">
  <div class="diagram-heading"><h2 id="stage-type-title">ステージタイプを選択</h2><button id="close-stage-types" type="button">閉じる</button></div>
  <div id="stage-types"></div>
