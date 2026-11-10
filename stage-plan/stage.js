@@ -26,6 +26,12 @@ const quickTools=['speaker','monitor','sub','light','truss'];
 const colors={speakers:'#255a88',instruments:'#326f64',audio:'#47456a',lighting:'#99610e',stage:'#5b6472'};
 const tools=Object.create(null);
 const sourceImages=new Map();
+const annotationTools={
+ 'annotation-line':{label:'線',color:'#192326'},
+ 'annotation-text':{label:'テキスト',color:'#192326'},
+};
+const isAnnotation=item=>Object.hasOwn(annotationTools,item.kind);
+let lineDraft=null;
 async function loadSourceImage(kind){
  if(sourceImages.has(kind))return sourceImages.get(kind);
  const loading=api('/stage/source-svg/'+kind).then(result=>result.data).catch(error=>{
@@ -98,7 +104,7 @@ function setPlacement(kind){
  diagram.classList.toggle('placing',!!kind);
  for(const button of el('palette').querySelectorAll('button'))
   button.setAttribute('aria-pressed',String(button.dataset.kind===kind));
- el('placement-help').textContent=kind?toolFor(kind).label+'を置く位置をクリックまたはタップしてください。':'機材を選び、図面をクリックまたはタップして配置します。';
+ el('placement-help').textContent=kind==='annotation-line'?'図面上で線の始点から終点までドラッグしてください。':kind?toolFor(kind).label+'を置く位置をクリックまたはタップしてください。':'機材を選び、図面をクリックまたはタップして配置します。';
 }
 
 function updateInspector(){
@@ -107,6 +113,10 @@ function updateInspector(){
  el('item-fields').hidden=!item;
  if(!item)return;
  el('item-name').value=item.name;
+ el('item-name-label').textContent=item.kind==='annotation-text'?'テキスト':'機材名';
+ el('item-name').hidden=el('item-name-label').hidden=item.kind==='annotation-line';
+ el('item-size-label').textContent=item.kind==='annotation-line'?'線の長さ（cm）':'幅（cm）';
+ for(const node of el('item-fields').querySelectorAll('[data-equipment-only]'))node.hidden=isAnnotation(item);
  el('item-angle').value=item.angle;
  el('item-height').value=item.height;
  el('item-source').value=item.source||'venue';
@@ -120,7 +130,7 @@ function updateInspector(){
 
 function toolFor(key){
  const asset=assets.find(entry=>entry.id===key);
- return asset?{label:asset.name,group:'imported',asset}:tools[key];
+ return asset?{label:asset.name,group:'imported',asset}:annotationTools[key]||tools[key];
 }
 function renderSchedule(){
  const root=el('schedule-tables');
@@ -131,7 +141,7 @@ function renderSchedule(){
   section.append(heading);
   const counts=new Map();
   for(const item of items){
-   if((item.source||'venue')!==key)continue;
+   if(isAnnotation(item)||(item.source||'venue')!==key)continue;
    const label=item.name||toolFor(item.assetId||item.kind).label;
    counts.set(label,(counts.get(label)||0)+(item.quantity??1));
   }
@@ -153,7 +163,7 @@ function symbolDimensions(item){
  const tool=toolFor(item.assetId||item.kind),image=tool.asset||tool.source;
  const unit=dimensions?geometry().scale:1;
  const width=item.size!=null?item.size*unit:image?(dimensions?(tool.source?.size??60)*unit:48):90;
- return {width,height:width/(image?.ratio??(90/80))};
+ return {width,height:width/(image?.ratio??(item.kind==='annotation-line'?9:item.kind==='annotation-text'?3:(90/80)))};
 }
 function poseItem(group,item){
  const {width,height}=symbolDimensions(item);
@@ -191,7 +201,7 @@ function draw(){
    'aria-pressed':String(item.id===selectedId),class:'equipment-item','data-item':item.id});
   const body=svg('g',{class:'object-body',fill:tool.color,color:tool.color});
   const imported=tool.asset||tool.source;
-  const height=imported?90/imported.ratio:80;
+  const height=imported?90/imported.ratio:item.kind==='annotation-line'?10:item.kind==='annotation-text'?30:80;
   body.append(svg('rect',{x:-45,y:-height/2,width:90,height,fill:'transparent'}));
   const symbol=svg('g',{});
   if(imported){
@@ -199,9 +209,21 @@ function draw(){
    symbol.append(image);
    if(tool.asset)image.setAttribute('href',tool.asset.data);
    else loadSourceImage(item.kind).then(data=>image.setAttribute('href',data)).catch(()=>{if(image.isConnected)status('SVG記号を読み込めませんでした。図面を開き直してください。');});
+  }else if(item.kind==='annotation-line'){
+   symbol.append(svg('line',{x1:-45,y1:0,x2:45,y2:0,stroke:tool.color,'stroke-width':2,'vector-effect':'non-scaling-stroke'}));
+  }else if(item.kind==='annotation-text'){
+   symbol.append(svg('rect',{x:-45,y:-15,width:90,height:30,fill:'#fff','fill-opacity':.9,rx:2}));
+   const text=svg('text',{x:0,y:0,class:'annotation-text'});
+   const lines=item.name.split('\n').slice(0,4);
+   lines.forEach((line,index)=>{
+    const span=svg('tspan',{x:0,y:(index-(lines.length-1)/2)*7+2.5});
+    if(line.length>17){span.setAttribute('textLength','84');span.setAttribute('lengthAdjust','spacingAndGlyphs');}
+    span.textContent=line;text.append(span);
+   });
+   symbol.append(text);
   }else symbol.innerHTML=tool.shape;
   const label=svg('text',{class:'object-name','pointer-events':'none'});
-  label.textContent=item.name||tool.label;
+  label.textContent=isAnnotation(item)?'':item.name||tool.label;
   body.append(symbol);group.append(body,label);equipment.append(group);
   poseItem(group,item);
  }
@@ -227,11 +249,12 @@ function snapPosition(pos){
 function addItem(position){
  if(items.length>=200){status('1つの図面に配置できる機材は200件までです。');return;}
  const tool=toolFor(placing);
- const item={id:crypto.randomUUID(),kind:tool.asset?'imported-svg':placing,...(tool.asset?{assetId:tool.asset.id,size:60}:tool.source?{size:tool.source.size}:{}),name:tool.label,...snapPosition(position),angle:0,height:0};
+ const item={id:crypto.randomUUID(),kind:tool.asset?'imported-svg':placing,...(tool.asset?{assetId:tool.asset.id,size:60}:tool.source?{size:tool.source.size}:placing==='annotation-text'?{size:250}:{}),name:tool.label,...snapPosition(position),angle:0,height:0};
  items.push(item);
  selectedId=item.id;
  setPlacement(null);
  changed();draw();updateInspector();
+ if(item.kind==='annotation-text'){showToolPanel('properties');el('item-name').focus();el('item-name').select();}
 }
 
 function renderPalette(){
@@ -262,7 +285,16 @@ el('equipment-category').onchange=renderPalette;
 el('equipment-search').oninput=renderPalette;
 
 diagram.addEventListener('pointerdown',event=>{
- if(event.button!==0||drag)return;
+ if(event.button!==0||drag||lineDraft)return;
+ if(placing==='annotation-line'){
+  event.preventDefault();
+  const start=point(event);
+  const preview=svg('line',{x1:start.x,y1:start.y,x2:start.x,y2:start.y,stroke:'#7c3aed','stroke-width':2,'vector-effect':'non-scaling-stroke'});
+  el('line-draft').append(preview);
+  lineDraft={pointer:event.pointerId,start,preview,end:start};
+  diagram.setPointerCapture(event.pointerId);
+  return;
+ }
  const grip=event.target.closest('[data-grip]')?.dataset.grip;
  if(grip&&selected()){
   event.preventDefault();
@@ -283,6 +315,17 @@ diagram.addEventListener('pointerdown',event=>{
  drawControls();updateInspector();
 });
 diagram.addEventListener('pointermove',event=>{
+ if(lineDraft&&event.pointerId===lineDraft.pointer){
+  let end=point(event);
+  if(event.shiftKey){
+   const {start}=lineDraft,dx=end.x-start.x,dy=end.y-start.y;
+   const angle=Math.round(Math.atan2(dy,dx)/(Math.PI/4))*(Math.PI/4),length=Math.hypot(dx,dy);
+   end={x:clamp(start.x+length*Math.cos(angle),0,1000),y:clamp(start.y+length*Math.sin(angle),0,650)};
+  }
+  lineDraft.end=end;
+  lineDraft.preview.setAttribute('x2',end.x);lineDraft.preview.setAttribute('y2',end.y);
+  return;
+ }
  if(!drag||event.pointerId!==drag.pointer)return;
  const item=drag.item;
  const before=[item.x,item.y,item.angle,item.size].join(',');
@@ -309,7 +352,21 @@ diagram.addEventListener('pointermove',event=>{
  drawControls();
  changed();
 });
-diagram.addEventListener('lostpointercapture',()=>{drag=null;updateInspector();scheduleSave();});
+diagram.addEventListener('pointerup',event=>{
+ if(!lineDraft||lineDraft.pointer!==event.pointerId)return;
+ const {start,end}=lineDraft;
+ const dx=end.x-start.x,dy=end.y-start.y,length=Math.hypot(dx,dy);
+ if(length<2)return;
+ if(items.length>=200){status('図面に配置できる項目は200件までです。');return;}
+ const item={id:crypto.randomUUID(),kind:'annotation-line',name:'線',x:(start.x+end.x)/2,y:(start.y+end.y)/2,
+  angle:(Math.round(Math.atan2(dy,dx)*180/Math.PI)+360)%360,height:0,
+  size:clamp(Math.round(length/(dimensions?geometry().scale:1)),1,20000)};
+ items.push(item);selectedId=item.id;setPlacement(null);changed();draw();updateInspector();
+});
+diagram.addEventListener('lostpointercapture',()=>{
+ if(lineDraft){lineDraft.preview.remove();lineDraft=null;}
+ drag=null;updateInspector();scheduleSave();
+});
 diagram.addEventListener('keydown',event=>{
  const node=event.target.closest('[data-item]');
  if(!node)return;
@@ -641,8 +698,9 @@ objectMenu.addEventListener('click',event=>{
  const item=selected();
  if(!item)return;
  if(action==='properties'){
-  el('item-name').focus();
-  el('item-name').select();
+  showToolPanel('properties');
+  if(item.kind==='annotation-line')el('item-angle').focus();
+  else{el('item-name').focus();el('item-name').select();}
  }else if(action==='duplicate')duplicateSelected();
  else if(action==='delete')el('remove-item').click();
  else{
@@ -668,6 +726,21 @@ objectMenu.addEventListener('keydown',event=>{
 document.addEventListener('pointerdown',event=>{if(!objectMenu.contains(event.target))closeObjectMenu();});
 window.addEventListener('resize',()=>closeObjectMenu());
 window.addEventListener('scroll',()=>closeObjectMenu(),true);
+
+let activeToolPanel='materials';
+function showToolPanel(panel){
+ activeToolPanel=panel;
+ for(const content of document.querySelectorAll('[data-tool-panel]'))content.hidden=content.dataset.toolPanel!==panel;
+ for(const button of document.querySelectorAll('.tool-rail [data-panel]'))button.setAttribute('aria-pressed',String(button.dataset.panel===panel));
+ document.querySelector('.plan-layout').classList.toggle('tools-collapsed',!panel);
+}
+for(const button of document.querySelectorAll('.tool-rail [data-panel]')){
+ button.onclick=()=>showToolPanel(activeToolPanel===button.dataset.panel?null:button.dataset.panel);
+}
+el('rail-upload').onclick=()=>{showToolPanel('materials');el('import-symbol').click();};
+el('rail-plans').onclick=()=>el('open-list').click();
+el('add-text').onclick=()=>setPlacement('annotation-text');
+el('add-line').onclick=()=>setPlacement('annotation-line');
 
 function loadPlan(plan){
  closeObjectMenu();

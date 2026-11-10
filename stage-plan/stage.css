@@ -137,3 +137,20 @@ h2 { font-size:16px; margin:0 0 12px; }
 #object-menu button { width:100%; display:flex; justify-content:space-between; align-items:center; gap:8px; min-height:36px; border:0; padding:7px 10px; text-align:left; font-size:13px; }
 #object-menu kbd { color:#555; white-space:nowrap; font-size:11px; }
 @media print { #object-menu { display:none!important; } }
+.plan-layout { grid-template-columns:72px 250px minmax(0,1fr); align-items:start; }
+.plan-layout.tools-collapsed { grid-template-columns:72px minmax(0,1fr); }
+.plan-layout.tools-collapsed>.equipment-panel { display:none; }
+.tool-rail { display:grid; gap:4px; padding:4px; border:1px solid #d4d4d4; border-radius:10px; background:#fff; }
+.tool-rail button { display:grid; justify-items:center; align-content:center; gap:4px; min-height:58px; border:0; padding:5px 2px; font-size:10px; white-space:nowrap; }
+.tool-rail button span { font-size:22px; line-height:1; }
+.tool-rail button[aria-pressed=true] { background:#ede9fe; color:#5b21b6; }
+#item-name { width:100%; min-width:0; font:inherit; padding:7px; resize:vertical; }
+.equipment-item .annotation-text { font-size:7px; stroke:none; fill:#192326; }
+@media(max-width:900px) {
+ .plan-layout,.plan-layout.tools-collapsed { grid-template-columns:1fr; }
+ .tool-rail { display:flex; overflow:auto; grid-row:1; }
+ .tool-rail button { flex:1 0 56px; }
+ .equipment-panel { display:block; grid-row:2; }
+ .diagram-panel { grid-row:3; }
+}
+@media print { .tool-rail { display:none!important; } }

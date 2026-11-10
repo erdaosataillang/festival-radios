@@ -4,7 +4,7 @@ const {join}=require('node:path');
 const sourceCatalog=require('./kiwi-catalog.json');
 const sourceKinds=new Set(sourceCatalog.map(item=>item.id));
 const stageTypes=new Set(['hall','multipurpose','temporary']);
-const kinds=new Set([...require('./stage-catalog.json').map(tool=>tool.id),...sourceKinds]);
+const kinds=new Set([...require('./stage-catalog.json').map(tool=>tool.id),...sourceKinds,'annotation-line','annotation-text']);
 function validatePlan(value,fail){
  const title=typeof value?.title==='string'?value.title.trim():'';
  if(!title||title.length>100||!Array.isArray(value.items)||value.items.length>200)
