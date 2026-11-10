@@ -1,5 +1,5 @@
 import {api,setupSession} from './session.js?v=rulers-drop-resume-1';
-import {equipmentShape} from './equipment-symbols.js?v=3';
+import {equipmentShape} from './equipment-symbols.js?v=4';
 
 const stageTypes={
  hall:{label:'ホール',description:'舞台と客席の区画が分かれた会場',bounds:[155,82,690,335]},
@@ -30,6 +30,7 @@ const annotationTools={
  'annotation-line':{label:'線',color:'#192326'},
  'annotation-text':{label:'テキスト',color:'#192326'},
 };
+const isRigging=item=>tools[item.kind]?.group==='rigging';
 const isAnnotation=item=>Object.hasOwn(annotationTools,item.kind);
 let lineDraft=null,lastTextTap=null;
 async function loadSourceImage(kind){
@@ -131,7 +132,7 @@ function updateInspector(){
  el('item-name').value=item.name;
  el('item-name-label').textContent=item.kind==='annotation-text'?'テキスト':'機材名';
  el('item-name').hidden=el('item-name-label').hidden=item.kind==='annotation-line';
- el('item-size-label').textContent=item.kind==='annotation-line'?'線の長さ（cm）':'幅（cm）';
+ el('item-size-label').textContent=item.kind==='annotation-line'||isRigging(item)?'長さ（cm）':'幅（cm）';
  for(const node of el('item-fields').querySelectorAll('[data-equipment-only]'))node.hidden=isAnnotation(item);
  el('item-angle').value=item.angle;
  el('item-height').value=item.height;
@@ -185,13 +186,13 @@ function symbolDimensions(item){
  const tool=toolFor(item.assetId||item.kind),image=tool.asset||tool.source;
  const unit=dimensions?geometry().scale:1;
  const width=item.size!=null?item.size*unit:image?(dimensions?(tool.source?.size??60)*unit:48):90;
- return {width,height:width/(image?.ratio??(item.kind==='annotation-line'||tool.group==='rigging'?9:item.kind==='annotation-text'?90/textHeight(item):(90/80)))};
+ return {width,height:isRigging(item)?10:width/(image?.ratio??(item.kind==='annotation-line'?9:item.kind==='annotation-text'?90/textHeight(item):(90/80)))};
 }
 function poseItem(group,item){
  const {width,height}=symbolDimensions(item);
  group.setAttribute('transform',`translate(${item.x} ${item.y})`);
  const body=group.querySelector('.object-body');
- body.setAttribute('transform',`rotate(${item.angle}) scale(${width/90})`);
+ body.setAttribute('transform',`rotate(${item.angle}) scale(${width/90} ${isRigging(item)?1:width/90})`);
  const label=group.querySelector('.object-name');
  label.setAttribute('y',Math.max(20,height/2)+16);
 }
@@ -214,7 +215,9 @@ function drawControls(){
  const controls=svg('g',{transform:`translate(${item.x} ${item.y}) rotate(${item.angle})`});
  controls.append(svg('rect',{x:-x,y:-y,width,height,class:'object-outline'}));
  controls.append(svg('line',{x1:0,y1:y,x2:0,y2:gripY+offset,class:'object-outline'}));
- for(const [corner,cx,cy] of [['nw',-gripX,-gripY],['ne',gripX,-gripY],['sw',-gripX,gripY],['se',gripX,gripY],['rotate',0,gripY+offset]]){
+ const grips=isRigging(item)?[['w',-gripX,0],['e',gripX,0]]:
+  [['nw',-gripX,-gripY],['ne',gripX,-gripY],['sw',-gripX,gripY],['se',gripX,gripY]];
+ for(const [corner,cx,cy] of [...grips,['rotate',0,gripY+offset]]){
   controls.append(svg('circle',{cx,cy,r:target,class:'object-grip-target','data-grip':corner}));
   controls.append(svg('circle',{cx,cy,r:grip,class:'object-grip'}));
  }
@@ -480,7 +483,7 @@ diagram.addEventListener('pointermove',event=>{
   const step=event.shiftKey?15:1;
   item.angle=(Math.round(angle/step)*step+360)%360;
  }else if(drag.grip){
-  const sx=drag.grip.endsWith('e')?1:-1,sy=drag.grip.startsWith('s')?1:-1;
+  const sx=drag.grip.endsWith('e')?1:-1,sy=isRigging(item)?0:drag.grip.startsWith('s')?1:-1;
   const vector=rotateVector(sx*drag.width,sy*drag.height,drag.angle);
   const anchor={x:drag.x-vector.x/2,y:drag.y-vector.y/2};
   const factor=1+((end.x-drag.start.x)*vector.x+(end.y-drag.start.y)*vector.y)/(vector.x**2+vector.y**2);
