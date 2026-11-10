@@ -48,7 +48,7 @@ async function loadCatalog(){
   tools[id]={label,group,color:colors[group],shape:equipmentShape(symbol,mark)};
  const {symbols}=await api('/stage/source-catalog');
  const categories=document.createElement('optgroup');categories.label='舞台仕込み図オープンテンプレート';
- categories.append(new Option('配布SVG：すべて','source'));
+ categories.append(new Option('配布オブジェクト：すべて','source'));
  for(const category of new Set(symbols.map(item=>item.category)))categories.append(new Option(category,'source:'+category));
  el('equipment-category').append(categories);
  for(const {id,label,category,ratio,size} of symbols)
@@ -215,7 +215,7 @@ function draw(){
    const image=svg('image',{x:-45,y:-height/2,width:90,height});
    symbol.append(image);
    if(tool.asset)image.setAttribute('href',tool.asset.data);
-   else loadSourceImage(item.kind).then(data=>image.setAttribute('href',data)).catch(()=>{if(image.isConnected)status('SVG記号を読み込めませんでした。図面を開き直してください。');});
+   else loadSourceImage(item.kind).then(data=>image.setAttribute('href',data)).catch(()=>{if(image.isConnected)status('オブジェクトを読み込めませんでした。図面を開き直してください。');});
   }else if(item.kind==='annotation-line'){
    symbol.append(svg('line',{x1:-45,y1:0,x2:45,y2:0,stroke:tool.color,'stroke-width':2,'vector-effect':'non-scaling-stroke'}));
   }else if(item.kind==='annotation-text'){
@@ -536,7 +536,7 @@ async function importSvg(file){
   reader.onerror=reject;
   reader.readAsDataURL(new Blob([source],{type:'image/svg+xml'}));
  });
- return {id:crypto.randomUUID(),name:file.name.replace(/\.svg$/i,'').slice(0,80)||'SVG記号',ratio,data};
+ return {id:crypto.randomUUID(),name:file.name.replace(/\.svg$/i,'').slice(0,80)||'読み込んだオブジェクト',ratio,data};
 }
 for(const [buttonId,inputId,isBackground] of [['import-symbol','svg-symbol-file',false],['import-background','svg-background-file',true]]){
  const input=el(inputId);
