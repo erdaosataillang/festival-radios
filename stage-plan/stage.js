@@ -31,7 +31,7 @@ const annotationTools={
  'annotation-text':{label:'テキスト',color:'#192326'},
 };
 const isAnnotation=item=>Object.hasOwn(annotationTools,item.kind);
-let lineDraft=null;
+let lineDraft=null,lastTextTap=null;
 async function loadSourceImage(kind){
  if(sourceImages.has(kind))return sourceImages.get(kind);
  const loading=api('/stage/source-svg/'+kind).then(result=>result.data).catch(error=>{
@@ -106,11 +106,13 @@ function svg(tag,attrs){
 }
 
 function setPlacement(kind){
+ lineDraft=null;
+ el('line-draft').replaceChildren();
  placing=kind;
  diagram.classList.toggle('placing',!!kind);
  for(const button of el('palette').querySelectorAll('button'))
   button.setAttribute('aria-pressed',String(button.dataset.kind===kind));
- el('placement-help').textContent=kind==='annotation-line'?'図面上で線の始点から終点までドラッグしてください。':kind?toolFor(kind).label+'を置く位置をクリックまたはタップしてください。':'機材を選び、図面をクリックまたはタップして配置します。';
+ el('placement-help').textContent=kind==='annotation-line'?'図面上で線の始点をクリックまたはタップしてください。':kind?toolFor(kind).label+'を置く位置をクリックまたはタップしてください。':'機材を選び、図面をクリックまたはタップして配置します。';
 }
 
 function updateInspector(){
@@ -165,11 +167,17 @@ function renderSchedule(){
  }
 }
 const objectControls=el('object-controls');
+function textLines(item){
+ return item.name.split('\n').flatMap(line=>line.match(/.{1,12}/gu)||['']);
+}
+function textHeight(item){
+ return Math.max(30,textLines(item).length*8+4);
+}
 function symbolDimensions(item){
  const tool=toolFor(item.assetId||item.kind),image=tool.asset||tool.source;
  const unit=dimensions?geometry().scale:1;
  const width=item.size!=null?item.size*unit:image?(dimensions?(tool.source?.size??60)*unit:48):90;
- return {width,height:width/(image?.ratio??(item.kind==='annotation-line'?9:item.kind==='annotation-text'?3:(90/80)))};
+ return {width,height:width/(image?.ratio??(item.kind==='annotation-line'?9:item.kind==='annotation-text'?90/textHeight(item):(90/80)))};
 }
 function poseItem(group,item){
  const {width,height}=symbolDimensions(item);
@@ -212,7 +220,7 @@ function draw(){
    'aria-pressed':String(item.id===selectedId),class:'equipment-item','data-item':item.id});
   const body=svg('g',{class:'object-body',fill:tool.color,color:tool.color});
   const imported=tool.asset||tool.source;
-  const height=imported?90/imported.ratio:item.kind==='annotation-line'?10:item.kind==='annotation-text'?30:80;
+  const height=imported?90/imported.ratio:item.kind==='annotation-line'?10:item.kind==='annotation-text'?textHeight(item):80;
   body.append(svg('rect',{x:-45,y:-height/2,width:90,height,fill:'transparent'}));
   const symbol=svg('g',{});
   if(imported){
@@ -223,12 +231,10 @@ function draw(){
   }else if(item.kind==='annotation-line'){
    symbol.append(svg('line',{x1:-45,y1:0,x2:45,y2:0,stroke:tool.color,'stroke-width':2,'vector-effect':'non-scaling-stroke'}));
   }else if(item.kind==='annotation-text'){
-   symbol.append(svg('rect',{x:-45,y:-15,width:90,height:30,fill:'#fff','fill-opacity':.9,rx:2}));
-   const text=svg('text',{x:0,y:0,class:'annotation-text'});
-   const lines=item.name.split('\n').slice(0,4);
+   const lines=textLines(item);
+   const text=svg('text',{x:-43,y:0,class:'annotation-text'});
    lines.forEach((line,index)=>{
-    const span=svg('tspan',{x:0,y:(index-(lines.length-1)/2)*7+2.5});
-    if(line.length>17){span.setAttribute('textLength','84');span.setAttribute('lengthAdjust','spacingAndGlyphs');}
+    const span=svg('tspan',{x:-43,y:(index-(lines.length-1)/2)*8+2.5});
     span.textContent=line;text.append(span);
    });
    symbol.append(text);
@@ -265,7 +271,7 @@ function addItem(position){
  selectedId=item.id;
  setPlacement(null);
  changed();draw();updateInspector();
- if(item.kind==='annotation-text'){showToolPanel('properties');el('item-name').focus();el('item-name').select();}
+ if(item.kind==='annotation-text')editText(item);
 }
 
 function bindPaletteDrag(button,handle,kind,label){
@@ -340,15 +346,77 @@ function renderPalette(){
 el('equipment-category').onchange=renderPalette;
 el('equipment-search').oninput=renderPalette;
 
+function editText(item){
+ const group=equipment.querySelector('[data-item="'+item.id+'"]');
+ if(!group||group.querySelector('textarea'))return;
+ const body=group.querySelector('.object-body');
+ const text=body.querySelector('.annotation-text');
+ lastTextTap=null;
+ const box=svg('foreignObject',{x:-45,width:90});
+ const editor=document.createElement('textarea');
+ editor.className='diagram-text-editor';
+ editor.setAttribute('aria-label','図面上のテキスト');
+ editor.maxLength=80;
+ editor.value=item.name;
+ const resize=()=>{
+  const height=textHeight({name:editor.value});
+  box.setAttribute('y',-height/2);
+  box.setAttribute('height',height);
+ };
+ resize();
+ editor.addEventListener('input',resize);
+ editor.addEventListener('pointerdown',event=>event.stopPropagation());
+ editor.addEventListener('keydown',event=>{
+  event.stopPropagation();
+  if(event.isComposing)return;
+  if(event.key==='Escape'||event.key==='Enter'&&(event.metaKey||event.ctrlKey)){
+   event.preventDefault();
+   if(event.key==='Escape')editor.value=item.name;
+   editor.blur();
+   if(group.isConnected)group.focus({preventScroll:true});
+  }
+ });
+ editor.addEventListener('blur',()=>{
+  if(!box.isConnected)return;
+  box.remove();text.style.visibility='';
+  const value=editor.value.trim()||'テキスト';
+  if(value===item.name)return;
+  item.name=value;changed();draw();updateInspector();
+ },{once:true});
+ text.style.visibility='hidden';
+ box.append(editor);body.append(box);
+ editor.focus({preventScroll:true});editor.select();
+}
+
+function lineEnd(event,start){
+ const end=point(event);
+ if(!event.shiftKey)return end;
+ const dx=end.x-start.x,dy=end.y-start.y;
+ const angle=Math.round(Math.atan2(dy,dx)/(Math.PI/4))*(Math.PI/4),length=Math.hypot(dx,dy);
+ return {x:clamp(start.x+length*Math.cos(angle),0,1000),y:clamp(start.y+length*Math.sin(angle),0,650)};
+}
+
 diagram.addEventListener('pointerdown',event=>{
- if(event.button!==0||drag||lineDraft||spaceDown)return;
+ if(event.button!==0||!event.isPrimary||drag||spaceDown||event.target.closest('textarea'))return;
  if(placing==='annotation-line'){
   event.preventDefault();
+  if(lineDraft){
+   const {start}=lineDraft;
+   const end=lineEnd(event,start);
+   const dx=end.x-start.x,dy=end.y-start.y,length=Math.hypot(dx,dy);
+   if(length<2)return;
+   if(items.length>=200){status('図面に配置できる項目は200件までです。');return;}
+   const item={id:crypto.randomUUID(),kind:'annotation-line',name:'線',x:(start.x+end.x)/2,y:(start.y+end.y)/2,
+    angle:(Math.round(Math.atan2(dy,dx)*180/Math.PI)+360)%360,height:0,
+    size:clamp(Math.round(length/(dimensions?geometry().scale:1)),1,20000)};
+   items.push(item);selectedId=item.id;setPlacement(null);changed();draw();updateInspector();
+   return;
+  }
   const start=point(event);
   const preview=svg('line',{x1:start.x,y1:start.y,x2:start.x,y2:start.y,stroke:'#7c3aed','stroke-width':2,'vector-effect':'non-scaling-stroke'});
-  el('line-draft').append(preview);
-  lineDraft={pointer:event.pointerId,start,preview,end:start};
-  diagram.setPointerCapture(event.pointerId);
+  el('line-draft').append(preview,svg('circle',{cx:start.x,cy:start.y,r:3,fill:'#7c3aed'}));
+  lineDraft={start,preview};
+  el('placement-help').textContent='線の終点をクリックまたはタップしてください。Escで取り消せます。';
   return;
  }
  const grip=event.target.closest('[data-grip]')?.dataset.grip;
@@ -364,21 +432,15 @@ diagram.addEventListener('pointerdown',event=>{
  if(!target){selectedId=null;drawControls();updateInspector();return;}
  selectedId=target.dataset.item;
  const item=selected(),start=point(event);
- drag={pointer:event.pointerId,item,start,x:item.x,y:item.y};
+ drag={pointer:event.pointerId,item,start,x:item.x,y:item.y,clientX:event.clientX,clientY:event.clientY};
  diagram.setPointerCapture(event.pointerId);
  target.focus({preventScroll:true});
  for(const node of equipment.children)node.setAttribute('aria-pressed',String(node.dataset.item===selectedId));
  drawControls();updateInspector();
 });
 diagram.addEventListener('pointermove',event=>{
- if(lineDraft&&event.pointerId===lineDraft.pointer){
-  let end=point(event);
-  if(event.shiftKey){
-   const {start}=lineDraft,dx=end.x-start.x,dy=end.y-start.y;
-   const angle=Math.round(Math.atan2(dy,dx)/(Math.PI/4))*(Math.PI/4),length=Math.hypot(dx,dy);
-   end={x:clamp(start.x+length*Math.cos(angle),0,1000),y:clamp(start.y+length*Math.sin(angle),0,650)};
-  }
-  lineDraft.end=end;
+ if(lineDraft){
+  const end=lineEnd(event,lineDraft.start);
   lineDraft.preview.setAttribute('x2',end.x);lineDraft.preview.setAttribute('y2',end.y);
   return;
  }
@@ -409,18 +471,17 @@ diagram.addEventListener('pointermove',event=>{
  changed();
 });
 diagram.addEventListener('pointerup',event=>{
- if(!lineDraft||lineDraft.pointer!==event.pointerId)return;
- const {start,end}=lineDraft;
- const dx=end.x-start.x,dy=end.y-start.y,length=Math.hypot(dx,dy);
- if(length<2)return;
- if(items.length>=200){status('図面に配置できる項目は200件までです。');return;}
- const item={id:crypto.randomUUID(),kind:'annotation-line',name:'線',x:(start.x+end.x)/2,y:(start.y+end.y)/2,
-  angle:(Math.round(Math.atan2(dy,dx)*180/Math.PI)+360)%360,height:0,
-  size:clamp(Math.round(length/(dimensions?geometry().scale:1)),1,20000)};
- items.push(item);selectedId=item.id;setPlacement(null);changed();draw();updateInspector();
+ if(drag?.pointer!==event.pointerId||drag.grip||drag.item.kind!=='annotation-text')return;
+ const {item,clientX,clientY}=drag;
+ if(drag.undoRecorded||Math.hypot(event.clientX-clientX,event.clientY-clientY)>6){
+  lastTextTap=null;
+  return;
+ }
+ const previousTap=lastTextTap;
+ lastTextTap={item,time:event.timeStamp};
+ if(previousTap?.item===item&&event.timeStamp-previousTap.time<450)editText(item);
 });
 diagram.addEventListener('lostpointercapture',()=>{
- if(lineDraft){lineDraft.preview.remove();lineDraft=null;}
  drag=null;updateInspector();scheduleSave();
 });
 diagram.addEventListener('keydown',event=>{
@@ -432,6 +493,7 @@ diagram.addEventListener('keydown',event=>{
  event.preventDefault();
  selectedId=node.dataset.item;
  const item=selected();
+ if(event.key==='Enter'&&item.kind==='annotation-text'){editText(item);return;}
  if(direction){
   const step=dimensions?(event.shiftKey?10:1)*geometry().scale:(event.shiftKey?25:5);
   item.x=clamp(item.x+step*direction[0],0,1000);
@@ -471,6 +533,7 @@ el('redo-edit').onclick=()=>restoreChange(redoStack,undoStack);
 el('quick-duplicate').onclick=duplicateSelected;
 function editSelected(){
  const item=selected();if(!item)return;
+ if(item.kind==='annotation-text'){editText(item);return;}
  showToolPanel('properties');
  if(item.kind==='annotation-line')el('item-angle').focus();
  else{el('item-name').focus();el('item-name').select();}
