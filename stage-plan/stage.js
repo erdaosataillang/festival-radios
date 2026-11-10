@@ -256,7 +256,7 @@ function drawControls(){
  el('quick-flip').disabled=unavailable||isAnnotation(item)||isRigging(item);
  el('quick-flip').setAttribute('aria-pressed',String(!!item?.flipX));
  if(!item)return;
- el('quick-color').value=item.color??toolFor(item.assetId||item.kind).color??'#474747';
+ el('quick-color').style.setProperty('--swatch',objectColor(item));
  el('quick-opacity').value=item.opacity??100;
  if(fixed)return;
  const {width,height}=symbolDimensions(item);
@@ -807,7 +807,67 @@ el('quick-lock').onclick=()=>{
  }
  changed();draw();updateInspector();
 };
-el('quick-color').onchange=event=>editToolbarItem(item=>{item.color=event.target.value;});
+const colorPresets=[
+ ['黒','#000000'],['チャコール','#333333'],['グレー','#737373'],['ライトグレー','#d4d4d4'],['白','#ffffff'],
+ ['赤','#ef4444'],['えんじ','#9f1239'],['ピンク','#ec4899'],['ラベンダー','#c084fc'],['紫','#7c3aed'],
+ ['紺','#1e3a8a'],['青','#2563eb'],['水色','#60a5fa'],['シアン','#00c4cc'],['青緑','#0f766e'],
+ ['緑','#16a34a'],['黄緑','#84cc16'],['黄色','#facc15'],['オレンジ','#f97316'],['茶色','#92400e'],
+];
+const colorDialog=el('object-colors');
+function objectColor(item){
+ return item.color??toolFor(item.assetId||item.kind).color??'#474747';
+}
+function renderColorSwatches(){
+ const item=selected();
+ if(!item)return;
+ const current=objectColor(item).toLowerCase();
+ const query=el('color-search').value.trim().normalize('NFKC').toLowerCase();
+ const diagramColors=[...new Set([current,...items.map(entry=>entry.color?.toLowerCase()).filter(Boolean)])];
+ const filter=([name,hex])=>name.toLowerCase().includes(query)||hex.includes(query);
+ const used=diagramColors.map(hex=>[colorPresets.find(([,value])=>value===hex)?.[0]??hex,hex]).filter(filter);
+ const presets=colorPresets.filter(filter);
+ for(const [id,colors] of [['diagram-colors',used],['preset-colors',presets]]){
+  el(id).replaceChildren(...colors.map(([name,hex])=>{
+   const button=document.createElement('button');
+   button.type='button';button.className='color-swatch';
+   button.style.setProperty('--swatch',hex);
+   button.title=name+' '+hex;button.setAttribute('aria-label',button.title);
+   button.setAttribute('aria-pressed',String(hex===current));
+   button.onclick=()=>{
+    applyObjectColor(hex);
+    el(id).querySelector('[aria-pressed="true"]')?.focus();
+   };
+   return button;
+  }));
+ }
+ el('diagram-color-section').hidden=!used.length;
+ el('color-empty').hidden=!!(used.length||presets.length);
+}
+function applyObjectColor(hex){
+ if(!selected()||locked(selected()))return;
+ if(objectColor(selected()).toLowerCase()!==hex)editToolbarItem(item=>{item.color=hex;});
+ el('color-hex').value=el('color-picker').value=hex;
+ renderColorSwatches();
+}
+el('quick-color').onclick=()=>{
+ const item=selected();
+ if(!item||locked(item))return;
+ el('color-title').textContent=item.kind==='annotation-text'?'テキストの色':'オブジェクトの色';
+ el('color-search').value='';
+ el('color-hex').value=el('color-picker').value=objectColor(item);
+ renderColorSwatches();colorDialog.showModal();
+};
+el('close-colors').onclick=()=>colorDialog.close();
+el('color-search').oninput=renderColorSwatches;
+el('color-picker').oninput=event=>{el('color-hex').value=event.target.value;};
+el('color-hex').oninput=event=>{
+ const value=event.target.value;
+ if(/^#?[0-9a-f]{6}$/i.test(value))el('color-picker').value='#'+value.replace(/^#/,'');
+};
+el('custom-color').onsubmit=event=>{
+ event.preventDefault();
+ applyObjectColor('#'+el('color-hex').value.replace(/^#/,'').toLowerCase());
+};
 el('quick-opacity').onchange=event=>editToolbarItem(item=>{item.opacity=Number(event.target.value);});
 el('quick-flip').onclick=()=>editToolbarItem(item=>{
  if(item.flipX)delete item.flipX;else item.flipX=true;

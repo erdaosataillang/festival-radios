@@ -10,8 +10,8 @@
 <link rel="stylesheet" href="../assets/auth-gate.css?v=1">
 <link rel="stylesheet" href="../assets/official-theme.css?v=1">
 <link rel="stylesheet" href="../assets/astryx-ui.css?v=2">
-<link rel="stylesheet" href="stage.css?v=rotation-angle-1">
-<script type="module" src="stage.js?v=resume-loading-1"></script>
+<link rel="stylesheet" href="stage.css?v=color-palette-1">
+<script type="module" src="stage.js?v=color-palette-1"></script>
 </head>
 <body>
 <header><span class="header-title">ステージ図面</span><a class="header-brand app-home" href="https://app.urakatabu.com/">アプリ一覧</a><urakata-account></urakata-account></header>
@@ -99,7 +99,7 @@
   <div id="object-actions" role="group" aria-label="オブジェクトの編集">
    <button id="quick-properties" type="button">編集</button>
    <button id="quick-replace" type="button">置き換え</button>
-   <label class="toolbar-field" data-unlocked>色 <input id="quick-color" type="color" aria-label="色"></label>
+   <button id="quick-color" type="button" aria-haspopup="dialog"><span class="current-color" aria-hidden="true"></span>色</button>
    <label class="toolbar-field" data-unlocked>透明度 <input id="quick-opacity" type="range" min="10" max="100" value="100" aria-label="透明度"></label>
    <button id="quick-flip" type="button" aria-pressed="false">左右反転</button>
    <button id="quick-position" type="button">配置</button>
@@ -138,6 +138,20 @@
  </section>
 </div>
 </div></main>
+<dialog id="object-colors" aria-labelledby="color-title">
+ <header class="color-heading"><h2 id="color-title">オブジェクトの色</h2><button id="close-colors" type="button" aria-label="閉じる">×</button></header>
+ <input id="color-search" type="search" aria-label="色を検索" placeholder="「青」または「#00c4cc」を検索">
+ <section id="diagram-color-section"><h3>この図面の色</h3><div id="diagram-colors" class="color-swatches"></div></section>
+ <section><h3>プリセット</h3><div id="preset-colors" class="color-swatches"></div><p id="color-empty" class="hint" hidden>一致する色がありません。</p></section>
+ <form id="custom-color">
+  <h3>カスタムカラー</h3>
+  <div class="custom-color-fields">
+   <input id="color-picker" type="color" aria-label="色を細かく選ぶ">
+   <label for="color-hex">HEX</label><input id="color-hex" type="text" required pattern="#?[0-9a-fA-F]{6}" maxlength="7" spellcheck="false" autocomplete="off">
+   <button type="submit">適用</button>
+  </div>
+ </form>
+</dialog>
 <dialog id="replace-object">
  <form method="dialog">
   <h2>オブジェクトの置き換え</h2>
