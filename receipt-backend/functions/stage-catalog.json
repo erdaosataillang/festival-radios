@@ -474,5 +474,19 @@
     "group": "stage",
     "symbol": "chair",
     "mark": ""
+  },
+  {
+    "id": "sus",
+    "label": "SUS（サスペンションバトン）",
+    "group": "rigging",
+    "symbol": "sus",
+    "mark": ""
+  },
+  {
+    "id": "scenery-baton",
+    "label": "美術バトン",
+    "group": "rigging",
+    "symbol": "baton",
+    "mark": ""
   }
 ]

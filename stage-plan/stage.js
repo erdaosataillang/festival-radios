@@ -1,5 +1,5 @@
 import {api,setupSession} from './session.js?v=rulers-drop-resume-1';
-import {equipmentShape} from './equipment-symbols.js?v=2';
+import {equipmentShape} from './equipment-symbols.js?v=3';
 
 const stageTypes={
  hall:{label:'ホール',description:'舞台と客席の区画が分かれた会場',bounds:[155,82,690,335]},
@@ -23,7 +23,7 @@ function positionSvg(x,y,frame=geometry()){
 }
 
 const quickTools=['speaker','monitor','sub','light','truss'];
-const colors={speakers:'#255a88',instruments:'#326f64',audio:'#47456a',lighting:'#99610e',stage:'#5b6472'};
+const colors={speakers:'#255a88',instruments:'#326f64',audio:'#47456a',lighting:'#99610e',rigging:'#6b4384',stage:'#5b6472'};
 const tools=Object.create(null);
 const sourceImages=new Map();
 const annotationTools={
@@ -42,7 +42,7 @@ async function loadSourceImage(kind){
  return loading;
 }
 async function loadCatalog(){
- const response=await fetch(new URL('./catalog.json?v=2',import.meta.url));
+ const response=await fetch(new URL('./catalog.json?v=3',import.meta.url));
  if(!response.ok)throw new Error('機材一覧を読み込めませんでした。');
  for(const {id,label,group,symbol,mark} of await response.json())
   tools[id]={label,group,color:colors[group],shape:equipmentShape(symbol,mark)};
@@ -67,7 +67,14 @@ function rememberPlan(){
  try{localStorage.setItem(lastPlanKey,id);}catch{}
 }
 let previous,undoStack=[],redoStack=[];
-const snapshot=()=>({title:el('plan-name').value,items:items.map(item=>({...item})),selectedId,dimensions,venue,assets,background});
+const baseLayer={id:'base',name:'基本',visible:true};
+let layers=[baseLayer],activeLayer='base';
+const marked=new Set();
+const layerOf=item=>item.layerId??'base';
+const visible=item=>layers.find(layer=>layer.id===layerOf(item))?.visible!==false;
+const groupOf=item=>item?.groupId?items.filter(entry=>entry.groupId===item.groupId):item?[item]:[];
+const orderedItems=()=>layers.flatMap(layer=>items.filter(item=>layerOf(item)===layer.id));
+const snapshot=()=>({layers,title:el('plan-name').value,items:items.map(item=>({...item})),selectedId,dimensions,venue,assets,background});
 function scheduleSave(){
  clearTimeout(saveTimer);
  if(dirty&&!saving&&!opening&&!drag)saveTimer=setTimeout(()=>savePlan(),850);
@@ -92,7 +99,7 @@ function restoreChange(from,to){
  const focused=diagram.contains(document.activeElement);
  to.push(snapshot());
  const state=from.pop();
- dimensions=state.dimensions;venue=state.venue;assets=state.assets;background=state.background;setPlacement(null);renderPalette();drawStage();items=state.items;selectedId=state.selectedId;el('plan-name').value=state.title;
+ layers=state.layers;marked.clear();dimensions=state.dimensions;venue=state.venue;assets=state.assets;background=state.background;setPlacement(null);renderPalette();drawStage();items=state.items;selectedId=state.selectedId;el('plan-name').value=state.title;
  previous=snapshot();
  dirty=true;draw();updateInspector();scheduleSave();
  status('変更を自動保存します…');
@@ -116,6 +123,7 @@ function setPlacement(kind){
 }
 
 function updateInspector(){
+ renderLayers();
  const item=selected();
  el('empty-selection').hidden=!!item;
  el('item-fields').hidden=!item;
@@ -177,7 +185,7 @@ function symbolDimensions(item){
  const tool=toolFor(item.assetId||item.kind),image=tool.asset||tool.source;
  const unit=dimensions?geometry().scale:1;
  const width=item.size!=null?item.size*unit:image?(dimensions?(tool.source?.size??60)*unit:48):90;
- return {width,height:width/(image?.ratio??(item.kind==='annotation-line'?9:item.kind==='annotation-text'?90/textHeight(item):(90/80)))};
+ return {width,height:width/(image?.ratio??(item.kind==='annotation-line'||tool.group==='rigging'?9:item.kind==='annotation-text'?90/textHeight(item):(90/80)))};
 }
 function poseItem(group,item){
  const {width,height}=symbolDimensions(item);
@@ -214,13 +222,13 @@ function drawControls(){
 }
 function draw(){
  equipment.replaceChildren();
- for(const item of items){
+ for(const item of orderedItems().filter(visible)){
   const tool=toolFor(item.assetId||item.kind);
   const group=svg('g',{tabindex:0,role:'button','aria-label':item.name||tool.label,
-   'aria-pressed':String(item.id===selectedId),class:'equipment-item','data-item':item.id});
+   'aria-pressed':String(marked.has(item.id)||groupOf(selected()).includes(item)),class:'equipment-item','data-item':item.id});
   const body=svg('g',{class:'object-body',fill:tool.color,color:tool.color});
   const imported=tool.asset||tool.source;
-  const height=imported?90/imported.ratio:item.kind==='annotation-line'?10:item.kind==='annotation-text'?textHeight(item):80;
+  const height=imported?90/imported.ratio:item.kind==='annotation-line'||tool.group==='rigging'?10:item.kind==='annotation-text'?textHeight(item):80;
   body.append(svg('rect',{x:-45,y:-height/2,width:90,height,fill:'transparent'}));
   const symbol=svg('g',{});
   if(imported){
@@ -266,9 +274,10 @@ function snapPosition(pos){
 function addItem(position){
  if(items.length>=200){status('1つの図面に配置できる機材は200件までです。');return;}
  const tool=toolFor(placing);
- const item={id:crypto.randomUUID(),kind:tool.asset?'imported-svg':placing,...(tool.asset?{assetId:tool.asset.id,size:60}:tool.source?{size:tool.source.size}:placing==='annotation-text'?{size:250}:{}),name:tool.label,...snapPosition(position),angle:0,height:0};
+ const item={id:crypto.randomUUID(),kind:tool.asset?'imported-svg':placing,...(tool.asset?{assetId:tool.asset.id,size:60}:tool.source?{size:tool.source.size}:tool.group==='rigging'?{size:600}:placing==='annotation-text'?{size:250}:{}),name:tool.label,...snapPosition(position),angle:0,height:0};
+ item.layerId=placementLayer();
  items.push(item);
- selectedId=item.id;
+ marked.clear();selectedId=item.id;
  setPlacement(null);
  changed();draw();updateInspector();
  if(item.kind==='annotation-text')editText(item);
@@ -417,7 +426,8 @@ diagram.addEventListener('pointerdown',event=>{
    const item={id:crypto.randomUUID(),kind:'annotation-line',name:'線',x:(start.x+end.x)/2,y:(start.y+end.y)/2,
     angle:(Math.round(Math.atan2(dy,dx)*180/Math.PI)+360)%360,height:0,
     size:clamp(Math.round(length/(dimensions?geometry().scale:1)),1,20000)};
-   items.push(item);selectedId=item.id;setPlacement(null);changed();draw();updateInspector();
+   item.layerId=placementLayer();
+   items.push(item);marked.clear();selectedId=item.id;setPlacement(null);changed();draw();updateInspector();
    return;
   }
   startLine(point(event));
@@ -433,13 +443,21 @@ diagram.addEventListener('pointerdown',event=>{
  }
  if(placing){event.preventDefault();addItem(point(event));return;}
  const target=event.target.closest('[data-item]');
- if(!target){selectedId=null;drawControls();updateInspector();return;}
+ if(!target){marked.clear();selectedId=null;drawControls();updateInspector();return;}
+ const priorSelection=selectedId;
  selectedId=target.dataset.item;
  const item=selected(),start=point(event);
- drag={pointer:event.pointerId,item,start,x:item.x,y:item.y,clientX:event.clientX,clientY:event.clientY};
+ if(event.shiftKey){
+  if(!marked.size&&priorSelection&&priorSelection!==item.id)marked.add(priorSelection);
+  if(marked.has(item.id))marked.delete(item.id);else marked.add(item.id);
+  selectedId=null;
+  draw();updateInspector();return;
+ }
+ marked.clear();
+ drag={pointer:event.pointerId,item,start,x:item.x,y:item.y,clientX:event.clientX,clientY:event.clientY,members:groupOf(item).map(entry=>({entry,x:entry.x,y:entry.y}))};
  diagram.setPointerCapture(event.pointerId);
  target.focus({preventScroll:true});
- for(const node of equipment.children)node.setAttribute('aria-pressed',String(node.dataset.item===selectedId));
+ for(const node of equipment.children)node.setAttribute('aria-pressed',String(groupOf(selected()).some(item=>item.id===node.dataset.item)));
  drawControls();updateInspector();
 });
 diagram.addEventListener('pointermove',event=>{
@@ -467,7 +485,14 @@ diagram.addEventListener('pointermove',event=>{
   const x=anchor.x+vector.x*ratio/2,y=anchor.y+vector.y*ratio/2;
   if(x>=0&&x<=1000&&y>=0&&y<=650)Object.assign(item,{size,x,y});
  }else{
-  Object.assign(item,snapPosition({x:clamp(drag.x+end.x-drag.start.x,0,1000),y:clamp(drag.y+end.y-drag.start.y,0,650)}));
+  const target=snapPosition({x:drag.x+end.x-drag.start.x,y:drag.y+end.y-drag.start.y});
+  const dx=clamp(target.x-drag.x,Math.max(...drag.members.map(m=>-m.x)),Math.min(...drag.members.map(m=>1000-m.x)));
+  const dy=clamp(target.y-drag.y,Math.max(...drag.members.map(m=>-m.y)),Math.min(...drag.members.map(m=>650-m.y)));
+  for(const {entry,x,y} of drag.members){
+   Object.assign(entry,{x:x+dx,y:y+dy});
+   const node=equipment.querySelector('[data-item="'+entry.id+'"]');
+   if(node)poseItem(node,entry);
+  }
  }
  if(before===[item.x,item.y,item.angle,item.size].join(','))return;
  poseItem(equipment.querySelector('[data-item="'+item.id+'"]'),item);
@@ -500,8 +525,10 @@ diagram.addEventListener('keydown',event=>{
  if(event.key==='Enter'&&item.kind==='annotation-text'){editText(item);return;}
  if(direction){
   const step=dimensions?(event.shiftKey?10:1)*geometry().scale:(event.shiftKey?25:5);
-  item.x=clamp(item.x+step*direction[0],0,1000);
-  item.y=clamp(item.y+step*direction[1],0,650);
+  const members=groupOf(item);
+  const dx=clamp(step*direction[0],Math.max(...members.map(entry=>-entry.x)),Math.min(...members.map(entry=>1000-entry.x)));
+  const dy=clamp(step*direction[1],Math.max(...members.map(entry=>-entry.y)),Math.min(...members.map(entry=>650-entry.y)));
+  for(const entry of members){entry.x+=dx;entry.y+=dy;}
   changed();
  }
  draw();updateInspector();
@@ -685,7 +712,9 @@ el('remove-background').onclick=()=>{
 };
 
 el('remove-item').onclick=()=>{
- items=items.filter(item=>item.id!==selectedId);
+ const removed=groupOf(selected());
+ items=items.filter(item=>!removed.includes(item));
+ marked.clear();
  selectedId=null;changed();draw();updateInspector();
 };
 
@@ -831,13 +860,104 @@ el('venue-form').onsubmit=event=>{
  venue={outline,curtains:curtains.map(({name,coords})=>({name,start:coords.slice(0,2),end:coords.slice(2)}))};
  venueDialog.close();drawStage();changed();
 };
+function placementLayer(){
+ return (layers.find(layer=>layer.id===activeLayer&&layer.visible)||layers.find(layer=>layer.visible)||layers[0]).id;
+}
+function layerSelection(){
+ return marked.size?items.filter(item=>marked.has(item.id)):groupOf(selected());
+}
+function refreshLayers(){
+ changed();draw();updateInspector();
+}
+function layerButton(label,action){
+ const button=document.createElement('button');
+ button.type='button';button.textContent=label;button.onclick=action;
+ return button;
+}
+function renderLayers(){
+ const list=el('layer-list'),objects=el('layer-objects'),move=el('move-layer');
+ if(!layers.some(layer=>layer.id===activeLayer))activeLayer=layers[0].id;
+ list.replaceChildren();objects.replaceChildren();move.replaceChildren(new Option('選択してください',''));
+ const selection=layerSelection();
+ el('group-items').disabled=selection.length<2;
+ el('ungroup-items').disabled=!selection.some(item=>item.groupId);
+ move.disabled=!selection.length;
+ for(const layer of [...layers].reverse()){
+  const row=document.createElement('div');
+  row.className='layer-row';
+  const select=layerButton(layer.name,()=>{activeLayer=layer.id;renderLayers();});
+  select.setAttribute('aria-pressed',String(activeLayer===layer.id));
+  const toggle=layerButton(layer.visible?'表示':'非表示',()=>{
+   if(layer.visible&&layers.filter(entry=>entry.visible).length===1)return;
+   layers=layers.map(entry=>entry===layer?{...layer,visible:!layer.visible}:entry);
+   if(selected()&&!visible(selected()))selectedId=null;
+   refreshLayers();
+  });
+  const reorder=direction=>{
+   const index=layers.indexOf(layer),next=index+direction;
+   const order=[...layers];
+   [order[index],order[next]]=[order[next],order[index]];
+   layers=order;refreshLayers();
+  };
+  const up=layerButton('↑',()=>reorder(1)),down=layerButton('↓',()=>reorder(-1));
+  up.setAttribute('aria-label',layer.name+'を前面へ');down.setAttribute('aria-label',layer.name+'を背面へ');
+  up.disabled=layers.at(-1)===layer;down.disabled=layers[0]===layer;
+  row.append(select,toggle,up,down);list.append(row);
+  move.append(new Option(layer.name,layer.id));
+ }
+ for(const item of orderedItems().reverse()){
+  const label=document.createElement('label'),checkbox=document.createElement('input');
+  checkbox.type='checkbox';checkbox.checked=selection.includes(item);
+  checkbox.onchange=()=>{
+   if(!marked.size)for(const entry of selection)marked.add(entry.id);
+   if(checkbox.checked)marked.add(item.id);else marked.delete(item.id);
+   selectedId=null;draw();updateInspector();
+  };
+  label.append(checkbox,(item.name||toolFor(item.assetId||item.kind).label)+(item.groupId?' · グループ':'')+' / '+layers.find(layer=>layer.id===layerOf(item)).name);
+  objects.append(label);
+ }
+}
+el('add-layer').onsubmit=event=>{
+ event.preventDefault();
+ const input=el('layer-name'),name=input.value.trim();
+ if(!name||layers.length>=20)return;
+ activeLayer=crypto.randomUUID();
+ layers=[...layers,{id:activeLayer,name,visible:true}];input.value='';refreshLayers();
+};
+el('move-layer').onchange=event=>{
+ const id=event.target.value;
+ if(!id)return;
+ for(const item of new Set(layerSelection().flatMap(groupOf)))item.layerId=id;
+ if(selected()&&!visible(selected()))selectedId=null;
+ refreshLayers();
+};
+el('group-items').onclick=()=>{
+ const members=[...new Set(layerSelection().flatMap(groupOf))];
+ if(members.length<2)return;
+ const groupId=crypto.randomUUID();
+ for(const item of members)item.groupId=groupId;
+ marked.clear();selectedId=members.find(visible)?.id??null;refreshLayers();
+};
+el('ungroup-items').onclick=()=>{
+ for(const item of layerSelection().flatMap(groupOf))delete item.groupId;
+ marked.clear();refreshLayers();
+};
+
 function duplicateSelected(){
- const item=selected();
- if(!item)return;
- if(items.length>=200){status('1つの図面に配置できる機材は200件までです。');return;}
+ const members=groupOf(selected());
+ if(!members.length)return;
+ if(items.length+members.length>200){status('図面に配置できる項目は200件までです。');return;}
  const offset=dimensions?20*geometry().scale:12;
- const copy={...item,id:crypto.randomUUID(),...snapPosition({x:clamp(item.x+offset,0,1000),y:clamp(item.y+offset,0,650)})};
- items.push(copy);selectedId=copy.id;changed();draw();updateInspector();
+ const dx=Math.min(offset,...members.map(item=>1000-item.x));
+ const dy=Math.min(offset,...members.map(item=>650-item.y));
+ const groupId=members.length>1?crypto.randomUUID():undefined;
+ const copies=members.map(item=>{
+  const copy={...item,id:crypto.randomUUID(),x:item.x+dx,y:item.y+dy};
+  if(groupId)copy.groupId=groupId;else delete copy.groupId;
+  return copy;
+ });
+ const copy=copies[0];
+ items.push(...copies);marked.clear();selectedId=copy.id;changed();draw();updateInspector();
  equipment.querySelector('[data-item="'+copy.id+'"]').focus({preventScroll:true});
 }
 
@@ -864,7 +984,7 @@ diagram.addEventListener('contextmenu',event=>{
  if(placing)setPlacement(null);
  const target=event.target.closest('[data-item]');
  selectedId=target?.dataset.item??(event.target.closest('[data-grip]')?selectedId:null);
- for(const node of equipment.children)node.setAttribute('aria-pressed',String(node.dataset.item===selectedId));
+ for(const node of equipment.children)node.setAttribute('aria-pressed',String(groupOf(selected()).some(item=>item.id===node.dataset.item)));
  drawControls();updateInspector();
  const box=target?.getBoundingClientRect();
  showObjectMenu(event.clientX||box?.left||16,event.clientY||box?.bottom||16,target);
@@ -946,6 +1066,7 @@ function loadPlan(plan){
  drawStage();
  id=plan.id??null;version=plan.version??null;
  rememberPlan();
+ layers=plan.layers??[baseLayer];activeLayer=layers[0].id;marked.clear();
  items=plan.items;el('plan-name').value=plan.title;
  clearTimeout(saveTimer);
  selectedId=null;setPlacement(null);dirty=false;
@@ -985,7 +1106,7 @@ function savePlan(manual=false){
   if(manual)el('plan-name').focus();
   return Promise.resolve();
  }
- const plan={title,...(stageType?{stageType}:{}),...(dimensions?{dimensions}:{}),...(venue?{venue}:{}),assets,background,items:items.map(item=>({...item}))};
+ const plan={title,layers,...(stageType?{stageType}:{}),...(dimensions?{dimensions}:{}),...(venue?{venue}:{}),assets,background,items:items.map(item=>({...item}))};
  el('save-plan').disabled=true;
  status('サーバーに保存しています…');
  saving=(async()=>{

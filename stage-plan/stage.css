@@ -211,3 +211,9 @@ h2 { font-size:16px; margin:0 0 12px; }
 }
 
 #add-text, #add-line { touch-action:none; cursor:grab; }
+
+#add-layer,.layer-row { display:flex; gap:4px; align-items:center; margin-block:6px; }
+#layer-name,.layer-row button:first-child { flex:1; min-width:0; overflow-wrap:anywhere; }
+.layer-row button { padding:4px; }
+.layer-row button[aria-pressed="true"] { border-color:#7c3aed; color:#5b21b6; }
+#layer-objects label { display:flex; gap:6px; align-items:center; overflow-wrap:anywhere; }

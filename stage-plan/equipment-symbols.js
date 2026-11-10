@@ -2,6 +2,8 @@ const box=(x,y,width,height,rx=3)=>`<rect x="${x}" y="${y}" width="${width}" hei
 const circle=(x,y,r)=>`<circle cx="${x}" cy="${y}" r="${r}"/>`;
 const white=shape=>`<g fill="#fff">${shape}</g>`;
 const shapes={
+ sus:box(-45,-4,90,8,0)+white([-40,-20,0,20,40].map(x=>circle(x,0,1.5)).join('')),
+ baton:'<path d="M-45 0H45" stroke="currentColor" stroke-width="2.5" stroke-dasharray="6 3"/>'+circle(-44,0,2)+circle(44,0,2),
  cabinet:box(-16,-24,32,48)+white(circle(0,6,9)+circle(0,-12,4))+'<path d="M-7 26H7L0 34z"/>',
  wedge:'<path d="M-23 16l9-32h28l9 32z"/>'+white(box(-12,-4,24,9))+'<path d="M-6 20H6L0 27z"/>',
  sub:box(-24,-18,48,36)+white(circle(0,0,11))+circle(0,0,6),
