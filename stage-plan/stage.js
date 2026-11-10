@@ -31,7 +31,7 @@ const annotationTools={
 };
 const isRigging=item=>tools[item?.kind]?.group==='rigging';
 const isAnnotation=item=>Object.hasOwn(annotationTools,item.kind);
-let lineDraft=null,lastTextTap=null;
+let lineDraft=null,lastObjectTap=null;
 async function loadSourceImage(kind){
  if(sourceImages.has(kind))return sourceImages.get(kind);
  const loading=api('/stage/source-svg/'+kind).then(result=>result.data).catch(error=>{
@@ -524,7 +524,7 @@ function editText(item){
  const rigging=isRigging(item);
  const body=rigging?group:group.querySelector('.object-body');
  const text=body.querySelector(rigging?'.rigging-name':'.annotation-text');
- lastTextTap=null;
+ lastObjectTap=null;
  const box=svg('foreignObject',rigging?{x:text.getAttribute('x'),width:150,class:'rigging-editor'}:{x:-45,width:90});
  const editor=document.createElement('textarea');
  editor.className='diagram-text-editor';
@@ -680,30 +680,27 @@ diagram.addEventListener('pointermove',event=>{
  drawControls();
  changed();
 });
-diagram.addEventListener('dblclick',event=>{
- if(placing||!event.target.closest('.rigging-name'))return;
- const item=selected();
- if(isRigging(item))editText(item);
-});
 diagram.addEventListener('pointerup',event=>{
  const label=event.target.closest('.rigging-name');
- if(label&&!placing&&!drag){
-  const item=selected();
-  if(item?.id!==label.closest('[data-item]').dataset.item)return;
-  const previousTap=lastTextTap;
-  lastTextTap={item,time:event.timeStamp};
-  if(previousTap?.item===item&&event.timeStamp-previousTap.time<450)editText(item);
-  return;
+ const item=selected();
+ if(!item||placing||locked(item))return;
+ if(label&&!drag){
+  if(item.id!==label.closest('[data-item]').dataset.item)return;
+ }else{
+  if(drag?.pointer!==event.pointerId||drag.grip||drag.item!==item)return;
+  if(drag.undoRecorded||Math.hypot(event.clientX-drag.clientX,event.clientY-drag.clientY)>6){
+   lastObjectTap=null;
+   return;
+  }
  }
- if(drag?.pointer!==event.pointerId||drag.grip||drag.item.kind!=='annotation-text')return;
- const {item,clientX,clientY}=drag;
- if(drag.undoRecorded||Math.hypot(event.clientX-clientX,event.clientY-clientY)>6){
-  lastTextTap=null;
-  return;
- }
- const previousTap=lastTextTap;
- lastTextTap={item,time:event.timeStamp};
- if(previousTap?.item===item&&event.timeStamp-previousTap.time<450)editText(item);
+ const {clientX:x,clientY:y,timeStamp:time}=event,previous=lastObjectTap;
+ lastObjectTap={item,x,y,time,label:!!label};
+ if(previous?.item!==item||previous.label!==!!label||time-previous.time>=450||Math.hypot(x-previous.x,y-previous.y)>8)return;
+ lastObjectTap=null;
+ requestAnimationFrame(()=>{
+  if(selected()!==item||placing)return;
+  if(label)editText(item);else editSelected();
+ });
 });
 diagram.addEventListener('lostpointercapture',()=>{
  drag=null;el('snap-guides').replaceChildren();updateInspector();scheduleSave();scheduleFloatingActions();
@@ -819,9 +816,6 @@ el('quick-menu').onclick=()=>{
  const button=el('quick-menu'),box=button.getBoundingClientRect();
  showObjectMenu(box.left,box.bottom+4,button);
 };
-diagram.addEventListener('dblclick',event=>{
- if(!placing&&event.target.closest('[data-item]')&&!event.target.closest('.rigging-name'))editSelected();
-});
 let spaceDown=false,pan=null;
 const editableTarget=target=>target.closest?.('input,textarea,select,button,[contenteditable]');
 document.addEventListener('keydown',event=>{
