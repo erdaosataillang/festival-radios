@@ -238,3 +238,5 @@ h2 { font-size:16px; margin:0 0 12px; }
 .viewport-ruler[hidden] { display:none; }
 @media screen { #diagram-rulers { display:none; } }
 @media print { .viewport-ruler { display:none; } }
+
+.equipment-item .rigging-name { font-size:12px; text-anchor:start; }

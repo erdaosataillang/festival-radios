@@ -128,7 +128,7 @@ function updateInspector(){
  el('item-fields').hidden=!item;
  if(!item)return;
  el('item-name').value=item.name;
- el('item-name-label').textContent=item.kind==='annotation-text'?'テキスト':'機材名';
+ el('item-name-label').textContent=item.kind==='annotation-text'?'テキスト':isRigging(item)?'左袖の表示名':'機材名';
  el('item-name').hidden=el('item-name-label').hidden=item.kind==='annotation-line';
  el('item-size-label').textContent=item.kind==='annotation-line'||isRigging(item)?'長さ（cm）':'幅（cm）';
  for(const node of el('item-fields').querySelectorAll('[data-equipment-only]'))node.hidden=isAnnotation(item);
@@ -191,8 +191,13 @@ function poseItem(group,item){
  group.setAttribute('transform',`translate(${item.x} ${item.y})`);
  const body=group.querySelector('.object-body');
  body.setAttribute('transform',`rotate(${item.angle}) scale(${width/90} ${isRigging(item)?1:width/90})`);
- const label=group.querySelector('.object-name');
- label.setAttribute('y',Math.max(20,height/2)+16);
+ const label=group.querySelector('.object-name, .rigging-name');
+ if(isRigging(item)){
+  const end=rotateVector(width/2,0,item.angle);
+  const left=end.x>=0?{x:-end.x,y:-end.y}:end;
+  label.setAttribute('x',left.x+4);
+  label.setAttribute('y',left.y-7);
+ }else label.setAttribute('y',Math.max(20,height/2)+16);
 }
 function drawControls(){
  objectControls.replaceChildren();
@@ -248,8 +253,8 @@ function draw(){
    });
    symbol.append(text);
   }else symbol.innerHTML=tool.shape;
-  const label=svg('text',{class:'object-name','pointer-events':'none'});
-  label.textContent=isAnnotation(item)?'':item.name||tool.label;
+  const label=svg('text',{class:isRigging(item)?'rigging-name':'object-name','pointer-events':'none'});
+  label.textContent=isRigging(item)?item.name:isAnnotation(item)?'':item.name||tool.label;
   body.append(symbol);group.append(body,label);equipment.append(group);
   poseItem(group,item);
  }
@@ -276,6 +281,13 @@ function addItem(position){
  if(items.length>=200){status('1つの図面に配置できる機材は200件までです。');return;}
  const tool=toolFor(placing);
  const item={id:crypto.randomUUID(),kind:tool.asset?'imported-svg':placing,...(tool.asset?{assetId:tool.asset.id,size:60}:tool.source?{size:tool.source.size}:tool.group==='rigging'?{size:600}:placing==='annotation-text'?{size:250}:{}),name:tool.label,...snapPosition(position),angle:0,height:0};
+ if(isRigging(item)){
+  const suffix=item.kind==='sus'?'SUS':'美術バトン';
+  const names=new Set(items.filter(entry=>entry.kind===item.kind).map(entry=>entry.name));
+  let number=1;
+  while(names.has(number+suffix))number++;
+  item.name=number+suffix;
+ }
  item.layerId=placementLayer();
  items.push(item);
  marked.clear();selectedId=item.id;
