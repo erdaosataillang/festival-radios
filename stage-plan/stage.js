@@ -111,8 +111,8 @@ function updateInspector(){
  el('item-height').value=item.height;
  el('item-source').value=item.source||'venue';
  el('item-quantity').value=item.quantity??1;
- el('item-size-row').hidden=!(item.kind==='imported-svg'||toolFor(item.kind)?.source)||!dimensions;
- el('item-size').value=item.size??toolFor(item.kind)?.source?.size??60;
+ el('item-size-row').hidden=!dimensions;
+ el('item-size').value=Math.round(symbolDimensions(item).width/(dimensions?geometry().scale:1));
  const pos=positionCm(item);
  el('item-x').value=dimensions?pos.x:'';el('item-y').value=dimensions?pos.y:'';
  el('item-x').disabled=el('item-y').disabled=!dimensions;
@@ -148,38 +148,74 @@ function renderSchedule(){
   root.append(section);
  }
 }
+const objectControls=el('object-controls');
+function symbolDimensions(item){
+ const tool=toolFor(item.assetId||item.kind),image=tool.asset||tool.source;
+ const unit=dimensions?geometry().scale:1;
+ const width=item.size!=null?item.size*unit:image?(dimensions?(tool.source?.size??60)*unit:48):90;
+ return {width,height:width/(image?.ratio??(90/80))};
+}
+function poseItem(group,item){
+ const {width,height}=symbolDimensions(item);
+ group.setAttribute('transform',`translate(${item.x} ${item.y})`);
+ const body=group.querySelector('.object-body');
+ body.setAttribute('transform',`rotate(${item.angle}) scale(${width/90})`);
+ const label=group.querySelector('.object-name');
+ label.setAttribute('y',Math.max(20,height/2)+16);
+}
+function drawControls(){
+ objectControls.replaceChildren();
+ const item=selected();
+ if(!item)return;
+ const {width,height}=symbolDimensions(item);
+ const x=width/2,y=height/2;
+ const scale=diagram.getScreenCTM()?.a||1;
+ const grip=clamp(5/Math.abs(scale),2,24);
+ const target=clamp(12/Math.abs(scale),5,36);
+ const gripX=Math.max(x,1.2*target),gripY=Math.max(y,1.2*target);
+ const offset=clamp(26/Math.abs(scale),10,60);
+ const controls=svg('g',{transform:`translate(${item.x} ${item.y}) rotate(${item.angle})`});
+ controls.append(svg('rect',{x:-x,y:-y,width,height,class:'object-outline'}));
+ controls.append(svg('line',{x1:0,y1:y,x2:0,y2:gripY+offset,class:'object-outline'}));
+ for(const [corner,cx,cy] of [['nw',-gripX,-gripY],['ne',gripX,-gripY],['sw',-gripX,gripY],['se',gripX,gripY],['rotate',0,gripY+offset]]){
+  controls.append(svg('circle',{cx,cy,r:target,class:'object-grip-target','data-grip':corner}));
+  controls.append(svg('circle',{cx,cy,r:grip,class:'object-grip'}));
+ }
+ objectControls.append(controls);
+}
 function draw(){
  equipment.replaceChildren();
  for(const item of items){
   const tool=toolFor(item.assetId||item.kind);
-  const group=svg('g',{
-   transform:`translate(${item.x} ${item.y})`,tabindex:0,role:'button',
-   'aria-label':item.name||tool.label,'aria-pressed':String(item.id===selectedId),
-   class:'equipment-item'+(item.id===selectedId?' selected':''),
-   'data-item':item.id,
-  });
-  const symbol=svg('g',{transform:`rotate(${item.angle})`,fill:tool.color,color:tool.color});
-  if(tool.asset||tool.source){
-   const width=dimensions?(item.size??tool.source?.size??60)*geometry().scale:48;
-   const height=width/(tool.asset||tool.source).ratio;
-   const image=svg('image',{x:-width/2,y:-height/2,width,height});
+  const group=svg('g',{tabindex:0,role:'button','aria-label':item.name||tool.label,
+   'aria-pressed':String(item.id===selectedId),class:'equipment-item','data-item':item.id});
+  const body=svg('g',{class:'object-body',fill:tool.color,color:tool.color});
+  const imported=tool.asset||tool.source;
+  const height=imported?90/imported.ratio:80;
+  body.append(svg('rect',{x:-45,y:-height/2,width:90,height,fill:'transparent'}));
+  const symbol=svg('g',{});
+  if(imported){
+   const image=svg('image',{x:-45,y:-height/2,width:90,height});
    symbol.append(image);
    if(tool.asset)image.setAttribute('href',tool.asset.data);
    else loadSourceImage(item.kind).then(data=>image.setAttribute('href',data)).catch(()=>{if(image.isConnected)status('SVG記号を読み込めませんでした。図面を開き直してください。');});
   }else symbol.innerHTML=tool.shape;
-  const hit=svg('rect',{x:-46,y:-37,width:92,height:74,rx:6,fill:'transparent'});
-  const outline=svg('rect',{x:-46,y:-37,width:92,height:74,rx:6,class:'selection'});
-  const label=svg('text',{y:49,'pointer-events':'none'});
+  const label=svg('text',{class:'object-name','pointer-events':'none'});
   label.textContent=item.name||tool.label;
-  group.append(hit,symbol,outline,label);
-  equipment.append(group);
+  body.append(symbol);group.append(body,label);equipment.append(group);
+  poseItem(group,item);
  }
+ drawControls();
  renderSchedule();
 }
 
-function point(event){
+function point(event,limit=true){
  const pos=new DOMPoint(event.clientX,event.clientY).matrixTransform(diagram.getScreenCTM().inverse());
- return {x:Math.round(clamp(pos.x,0,1000)),y:Math.round(clamp(pos.y,0,650))};
+ return limit?{x:Math.round(clamp(pos.x,0,1000)),y:Math.round(clamp(pos.y,0,650))}:{x:pos.x,y:pos.y};
+}
+function rotateVector(x,y,angle){
+ const r=angle*Math.PI/180;
+ return {x:x*Math.cos(r)-y*Math.sin(r),y:x*Math.sin(r)+y*Math.cos(r)};
 }
 
 function snapPosition(pos){
@@ -226,29 +262,51 @@ el('equipment-category').onchange=renderPalette;
 el('equipment-search').oninput=renderPalette;
 
 diagram.addEventListener('pointerdown',event=>{
- if(event.button!==0)return;
+ if(event.button!==0||drag)return;
+ const grip=event.target.closest('[data-grip]')?.dataset.grip;
+ if(grip&&selected()){
+  event.preventDefault();
+  const item=selected(),{width,height}=symbolDimensions(item);
+  drag={pointer:event.pointerId,item,grip,width,height,x:item.x,y:item.y,angle:item.angle,start:point(event,false)};
+  diagram.setPointerCapture(event.pointerId);
+  return;
+ }
  if(placing){event.preventDefault();addItem(point(event));return;}
  const target=event.target.closest('[data-item]');
- if(!target){selectedId=null;draw();updateInspector();return;}
+ if(!target){selectedId=null;drawControls();updateInspector();return;}
  selectedId=target.dataset.item;
  const item=selected(),start=point(event);
  drag={pointer:event.pointerId,item,start,x:item.x,y:item.y};
  diagram.setPointerCapture(event.pointerId);
  target.focus({preventScroll:true});
- for(const node of equipment.children){
-  const active=node.dataset.item===selectedId;
-  node.classList.toggle('selected',active);
-  node.setAttribute('aria-pressed',String(active));
- }
- updateInspector();
+ for(const node of equipment.children)node.setAttribute('aria-pressed',String(node.dataset.item===selectedId));
+ drawControls();updateInspector();
 });
 diagram.addEventListener('pointermove',event=>{
  if(!drag||event.pointerId!==drag.pointer)return;
- const end=point(event);
- const {x,y}=snapPosition({x:clamp(drag.x+end.x-drag.start.x,0,1000),y:clamp(drag.y+end.y-drag.start.y,0,650)});
- if(x===drag.item.x&&y===drag.item.y)return;
- drag.item.x=x;drag.item.y=y;
- equipment.querySelector('[data-item="'+drag.item.id+'"]').setAttribute('transform',`translate(${x} ${y})`);
+ const item=drag.item;
+ const before=[item.x,item.y,item.angle,item.size].join(',');
+ const end=point(event,!drag.grip);
+ if(drag.grip==='rotate'){
+  const angle=Math.atan2(end.y-item.y,end.x-item.x)*180/Math.PI-90;
+  const step=event.shiftKey?15:1;
+  item.angle=(Math.round(angle/step)*step+360)%360;
+ }else if(drag.grip){
+  const sx=drag.grip.endsWith('e')?1:-1,sy=drag.grip.startsWith('s')?1:-1;
+  const vector=rotateVector(sx*drag.width,sy*drag.height,drag.angle);
+  const anchor={x:drag.x-vector.x/2,y:drag.y-vector.y/2};
+  const factor=1+((end.x-drag.start.x)*vector.x+(end.y-drag.start.y)*vector.y)/(vector.x**2+vector.y**2);
+  const unit=dimensions?geometry().scale:1;
+  const size=clamp(Math.round(drag.width*factor/unit),1,20000);
+  const ratio=size*unit/drag.width;
+  const x=anchor.x+vector.x*ratio/2,y=anchor.y+vector.y*ratio/2;
+  if(x>=0&&x<=1000&&y>=0&&y<=650)Object.assign(item,{size,x,y});
+ }else{
+  Object.assign(item,snapPosition({x:clamp(drag.x+end.x-drag.start.x,0,1000),y:clamp(drag.y+end.y-drag.start.y,0,650)}));
+ }
+ if(before===[item.x,item.y,item.angle,item.size].join(','))return;
+ poseItem(equipment.querySelector('[data-item="'+item.id+'"]'),item);
+ drawControls();
  changed();
 });
 diagram.addEventListener('lostpointercapture',()=>{drag=null;updateInspector();scheduleSave();});
@@ -277,6 +335,15 @@ document.addEventListener('keydown',event=>{
   event.preventDefault();savePlan(true);return;
  }
  if(event.target.closest?.('input, textarea, select, [contenteditable]'))return;
+ if(command&&!event.altKey&&key==='d'&&selected()){
+  event.preventDefault();
+  if(items.length>=200){status('1つの図面に配置できる機材は200件までです。');return;}
+  const item=selected(),offset=dimensions?20*geometry().scale:12;
+  const copy={...item,id:crypto.randomUUID(),...snapPosition({x:clamp(item.x+offset,0,1000),y:clamp(item.y+offset,0,650)})};
+  items.push(copy);selectedId=copy.id;changed();draw();updateInspector();
+  equipment.querySelector('[data-item="'+copy.id+'"]').focus({preventScroll:true});
+  return;
+ }
  if(command&&!event.altKey&&(key==='z'||key==='y')){
   event.preventDefault();
   if(key==='y'||event.shiftKey)restoreChange(redoStack,undoStack);
@@ -304,10 +371,12 @@ function setZoom(value){
  el('zoom-out').disabled=zoom<=50;
  el('zoom-in').disabled=zoom>=400;
  diagramScroll.scrollTo(Math.max(0,x*zoom-diagramScroll.clientWidth/2),Math.max(0,y*zoom-diagramScroll.clientHeight/2));
+ drawControls();
 }
 el('zoom-out').onclick=()=>setZoom(zoom-25);
 el('zoom-in').onclick=()=>setZoom(zoom+25);
 el('zoom-reset').onclick=()=>setZoom(100);
+new ResizeObserver(drawControls).observe(diagram);
 el('toggle-grid').onclick=()=>{
  const show=el('toggle-grid').getAttribute('aria-pressed')!=='true';
  el('toggle-grid').setAttribute('aria-pressed',String(show));

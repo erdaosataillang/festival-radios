@@ -124,3 +124,12 @@ h2 { font-size:16px; margin:0 0 12px; }
  #diagram-scroll { overflow:visible; max-height:none; border:0; }
  #diagram-scroll #diagram { width:100%; }
 }
+#object-controls { pointer-events:none; }
+.object-outline { fill:none; stroke:#7c3aed; stroke-width:1.5; vector-effect:non-scaling-stroke; }
+.object-grip { fill:white; stroke:#7c3aed; stroke-width:1.5; vector-effect:non-scaling-stroke; }
+.object-grip-target { fill:transparent; pointer-events:all; touch-action:none; }
+.object-grip-target[data-grip=nw],.object-grip-target[data-grip=se] { cursor:nwse-resize; }
+.object-grip-target[data-grip=ne],.object-grip-target[data-grip=sw] { cursor:nesw-resize; }
+.object-grip-target[data-grip=rotate] { cursor:grab; }
+.equipment-item:focus-visible .object-body>rect:first-child { stroke:#7c3aed; vector-effect:non-scaling-stroke; }
+@media print { #object-controls { display:none; } }

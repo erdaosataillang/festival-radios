@@ -10,8 +10,8 @@
 <link rel="stylesheet" href="../assets/auth-gate.css?v=1">
 <link rel="stylesheet" href="../assets/official-theme.css?v=1">
 <link rel="stylesheet" href="../assets/astryx-ui.css?v=2">
-<link rel="stylesheet" href="stage.css?v=source-svg-zoom-1">
-<script type="module" src="stage.js?v=source-svg-zoom-1"></script>
+<link rel="stylesheet" href="stage.css?v=object-handles-1">
+<script type="module" src="stage.js?v=object-handles-1"></script>
 </head>
 <body>
 <header><span class="header-title">ステージ図面</span><a class="header-brand app-home" href="https://app.urakatabu.com/">アプリ一覧</a><urakata-account></urakata-account></header>
@@ -79,12 +79,12 @@
    <text id="stage-rear" x="500" y="119" class="diagram-label">ステージ奥</text>
    <text id="stage-front" x="500" y="397" class="diagram-label">ステージ前</text>
    <text id="stage-audience" x="500" y="580" class="diagram-label">客席側</text>
-   <g id="center-line" aria-hidden="true"><line x1="500" y1="35" x2="500" y2="600" stroke="#56606b" stroke-dasharray="14 6 2 6"/><text x="500" y="620" class="diagram-label">CL</text></g><g id="dimension-lines" aria-hidden="true"></g><g id="curtain-lines"></g><g id="equipment"></g>
+   <g id="center-line" aria-hidden="true"><line x1="500" y1="35" x2="500" y2="600" stroke="#56606b" stroke-dasharray="14 6 2 6"/><text x="500" y="620" class="diagram-label">CL</text></g><g id="dimension-lines" aria-hidden="true"></g><g id="curtain-lines"></g><g id="equipment"></g><g id="object-controls" aria-hidden="true"></g>
   </svg></div>
   <section class="equipment-schedule" aria-labelledby="schedule-title"><h2 id="schedule-title">機材表</h2><div id="schedule-tables"></div></section>
-  <p class="hint">機材をドラッグして移動できます。選択した機材は矢印キーでも動かせます。</p>
+  <p class="hint">機材をドラッグして移動。四隅でサイズ変更、下のハンドルで回転できます。</p>
   <details class="hint"><summary>ショートカットキー</summary>
-   <p>⌘ / Ctrl + S　今すぐ保存<br>⌘ / Ctrl + Z　元に戻す<br>⌘ / Ctrl + Shift + Z または Ctrl + Y　やり直す<br>1〜5　機材の種類を選択<br>矢印キー　機材を移動（Shiftで大きく移動）<br>Delete / Backspace　選択した機材を削除<br>＋ / −　図面の拡大・縮小<br>Esc　配置モードを解除</p>
+   <p>⌘ / Ctrl + S　今すぐ保存<br>⌘ / Ctrl + D　選択中の機材を複製<br>⌘ / Ctrl + Z　元に戻す<br>⌘ / Ctrl + Shift + Z または Ctrl + Y　やり直す<br>1〜5　機材の種類を選択<br>矢印キー　機材を移動（Shiftで大きく移動）<br>Delete / Backspace　選択した機材を削除<br>＋ / −　図面の拡大・縮小<br>Esc　配置モードを解除</p>
   </details>
  </section>
 </div>
