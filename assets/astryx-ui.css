@@ -1,0 +1,67 @@
+/* Astryx Neutral 0.7.11 tokens applied to the apps' native HTML controls. */
+@media screen {
+  .official-ui {
+    --official-ink: var(--color-text-primary, #1b1b1b);
+    --official-line: var(--color-border-emphasized, #d4d4d4);
+    --official-paper: var(--color-background-body, #f1f1f1);
+  }
+
+  .official-ui :is(.panel,.app-link,.radioitem,.item-card,.paper-wrap,.auth-gate,.urakata-profile-dialog) {
+    color: var(--official-ink);
+    background-color: var(--color-background-card, #fff);
+    border-color: var(--official-line);
+    border-radius: var(--radius-container, 12px);
+  }
+
+  .official-ui :is(main,dialog,.auth-gate) :is(input,select,textarea):not([type=checkbox]):not([type=radio]) {
+    background-color: var(--color-background-surface, #fff);
+    border: 1px solid var(--official-line);
+    border-radius: var(--radius-element, 10px);
+    color: var(--official-ink);
+  }
+
+  .official-ui :is(main,dialog,.auth-gate) :is(button,.account-main-action):not(.nav-item):not(.account-close):not(.radioitem) {
+    border-radius: var(--radius-element, 10px);
+    transition: background-color var(--duration-fast,125ms), border-color var(--duration-fast,125ms);
+  }
+
+  .official-ui :is(.hint,.app-text small,.auth-state #auth-status,.account-subtitle) {
+    color: var(--color-text-secondary, #474747);
+  }
+
+  .official-ui :is(.app-icon,.nav-item[aria-selected=true] .nav-icon,.invoice-totals) {
+    background: var(--color-background-muted, #f1f1f1);
+    color: var(--official-ink);
+  }
+
+  .official-ui .app-link:hover,
+  .official-ui .radioitem.active {
+    background: var(--color-background-muted, #f1f1f1);
+    border-color: var(--official-ink);
+  }
+
+  .official-ui .auth-gate .auth-progress {
+    background: var(--color-background-gray, #e2e2e2);
+  }
+
+  .official-ui .auth-progress::before {
+    background: var(--color-text-accent, #1b1b1b);
+  }
+
+  .official-ui :is(.account-trigger, button, a, input, select, textarea, summary):focus-visible {
+    outline: 2px solid var(--color-text-info, #0067ce);
+    outline-offset: 3px;
+  }
+
+  .official-ui .app-link {
+    transition-duration: var(--duration-fast, 125ms);
+  }
+  .official-ui .portal-hero h1,
+  .official-ui body:not(.authenticated) > .auth-gate {
+    animation-duration: var(--duration-medium, 300ms);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .official-ui :is(.app-link, main button, dialog button) { transition: none; }
+  }
+}
