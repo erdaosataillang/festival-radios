@@ -217,3 +217,8 @@ h2 { font-size:16px; margin:0 0 12px; }
 .layer-row button { padding:4px; }
 .layer-row button[aria-pressed="true"] { border-color:#7c3aed; color:#5b21b6; }
 #layer-objects label { display:flex; gap:6px; align-items:center; overflow-wrap:anywhere; }
+@media screen {
+ .equipment-item[aria-pressed="true"] .object-body>rect:first-child {
+  stroke:#7c3aed; stroke-dasharray:4 3; vector-effect:non-scaling-stroke;
+ }
+}
