@@ -1,5 +1,12 @@
 import {api,setupSession} from './session.js';
 
+const stageTypes={
+ hall:{label:'ホール',description:'舞台と客席の区画が分かれた会場',bounds:[155,82,690,335]},
+ multipurpose:{label:'多目的ホール',description:'室内にステージと客席を配置する会場',bounds:[205,95,590,245]},
+ temporary:{label:'仮設ステージ',description:'屋外やイベント会場に設置するステージ',bounds:[275,130,450,210]},
+};
+let stageType=null;
+
 const tools={
  speaker:{label:'メインスピーカー',color:'#255a88',shape:'<rect x="-16" y="-21" width="32" height="42" rx="4"/><circle cy="8" r="8" fill="white"/><circle cy="-10" r="4" fill="white"/><path d="M-7 23h14L0 32z"/>'},
  monitor:{label:'モニター',color:'#326f64',shape:'<path d="M-21 14l7-28h28l7 28z"/><path d="M-12 4h24" stroke="white" stroke-width="3"/><path d="M-6 17H6L0 25z"/>'},
@@ -164,7 +171,7 @@ diagram.addEventListener('keydown',event=>{
  equipment.querySelector('[data-item="'+selectedId+'"]').focus({preventScroll:true});
 });
 document.addEventListener('keydown',event=>{
- if(event.defaultPrevented||event.isComposing||el('workspace').hidden||document.querySelector('dialog[open]'))return;
+ if(event.defaultPrevented||event.isComposing||el('plan-editor').hidden||document.querySelector('dialog[open]'))return;
  const key=event.key.toLowerCase(),command=event.metaKey||event.ctrlKey;
  if(command&&!event.altKey&&key==='s'){
   event.preventDefault();savePlan(true);return;
@@ -207,7 +214,20 @@ el('remove-item').onclick=()=>{
  selectedId=null;changed();draw();updateInspector();
 };
 
+function drawStage(){
+ const template=stageTypes[stageType]||stageTypes.hall;
+ const [x,y,width,height]=template.bounds;
+ const boundary=el('stage-boundary');
+ for(const [key,value] of Object.entries({x,y,width,height}))boundary.setAttribute(key,value);
+ boundary.setAttribute('stroke-dasharray',stageType==='temporary'?'8 5':'none');
+ el('stage-rear').setAttribute('y',y+35);
+ el('stage-front').setAttribute('y',y+height-20);
+ el('stage-type-label').textContent=stageType?template.label:'';
+}
 function loadPlan(plan){
+ stageType=Object.hasOwn(stageTypes,plan.stageType)?plan.stageType:null;
+ el('plan-welcome').hidden=true;el('plan-editor').hidden=false;
+ drawStage();
  id=plan.id??null;version=plan.version??null;
  items=plan.items;el('plan-name').value=plan.title;
  clearTimeout(saveTimer);
@@ -223,9 +243,21 @@ async function canReplace(){
  if(dirty)await savePlan();
  return !dirty||confirm('保存できていない変更があります。破棄しますか？');
 }
-el('new-plan').onclick=async()=>{
- if(await canReplace())loadPlan({title:'新しいステージ図面',items:[]});
-};
+const typePicker=el('stage-type-picker');
+for(const [key,template] of Object.entries(stageTypes)){
+ const button=document.createElement('button'),name=document.createElement('strong'),description=document.createElement('small');
+ button.type='button';name.textContent=template.label;description.textContent=template.description;
+ button.append(name,description);
+ button.onclick=()=>{
+  typePicker.close();
+  loadPlan({title:template.label+'の図面',stageType:key,items:[]});
+  changed();
+ };
+ el('stage-types').append(button);
+}
+el('new-plan').onclick=async()=>{if(await canReplace()&&!typePicker.open)typePicker.showModal();};
+el('welcome-new').onclick=()=>typePicker.showModal();
+el('close-stage-types').onclick=()=>typePicker.close();
 function savePlan(manual=false){
  clearTimeout(saveTimer);
  if(saving)return saving;
@@ -236,7 +268,7 @@ function savePlan(manual=false){
   if(manual)el('plan-name').focus();
   return Promise.resolve();
  }
- const plan={title,items:items.map(item=>({...item}))};
+ const plan={title,...(stageType?{stageType}:{}),items:items.map(item=>({...item}))};
  el('save-plan').disabled=true;
  status('サーバーに保存しています…');
  saving=(async()=>{
@@ -244,7 +276,7 @@ function savePlan(manual=false){
   try{
    const result=await api('/stage/plans'+(id?'/'+id:''),{plan,version});
    id=result.id;version=result.version;
-   dirty=JSON.stringify(plan)!==JSON.stringify({title:el('plan-name').value.trim(),items});
+   dirty=JSON.stringify(plan)!==JSON.stringify({title:el('plan-name').value.trim(),...(stageType?{stageType}:{}),items});
    succeeded=true;
    status(dirty?'変更を自動保存します…':'サーバーに保存しました。');
   }catch(error){
@@ -272,7 +304,7 @@ el('open-list').onclick=async()=>{
    const li=document.createElement('li'),button=document.createElement('button'),time=document.createElement('small');
    button.type='button';
    time.textContent=new Intl.DateTimeFormat('ja-JP',{dateStyle:'short',timeStyle:'short',timeZone:'Asia/Tokyo'}).format(plan.updatedAt);
-   button.append(document.createTextNode(plan.title),time);
+   button.append(document.createTextNode(plan.title+(stageTypes[plan.stageType]?' · '+stageTypes[plan.stageType].label:'')),time);
    button.onclick=async()=>{
     if(!await canReplace())return;
     opening=true;
@@ -285,6 +317,7 @@ el('open-list').onclick=async()=>{
   }
  }catch(error){message.textContent=error.message;}
 };
+el('welcome-open').onclick=()=>el('open-list').click();
 el('close-list').onclick=()=>el('plan-picker').close();
 window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue='';}});
-setupSession(()=>{el('workspace').hidden=false;previous=snapshot();draw();updateInspector();},()=>dirty);
+setupSession(()=>{el('workspace').hidden=false;el('plan-welcome').hidden=false;typePicker.showModal();},()=>dirty);

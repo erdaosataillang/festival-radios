@@ -1,4 +1,5 @@
 'use strict';
+const stageTypes=new Set(['hall','multipurpose','temporary']);
 const kinds=new Set(['speaker','monitor','sub','light','truss']);
 function validatePlan(value,fail){
  const title=typeof value?.title==='string'?value.title.trim():'';
@@ -13,21 +14,22 @@ function validatePlan(value,fail){
   seen.add(item.id);
   return {id:item.id,kind:item.kind,name:item.name.trim(),x:item.x,y:item.y,angle:item.angle,height:item.height};
  });
- return {title,items};
+ if(value.stageType!==undefined&&!stageTypes.has(value.stageType))fail(400,'ステージタイプを確認してください。');
+ return {title,items,...(value.stageType?{stageType:value.stageType}:{})};
 }
 async function handleStagePlans({req,res,body,db,user,Timestamp,now,fail}){
  const plans=db.collection('stagePlanUsers').doc(user.uid).collection('plans');
  if(req.method==='GET'&&req.path==='/stage/plans'){
   const list=await plans.orderBy('updatedAt','desc').limit(100).get();
-  res.json({plans:list.docs.map(doc=>({id:doc.id,title:doc.get('title'),updatedAt:doc.get('updatedAt').toMillis()}))});
+  res.json({plans:list.docs.map(doc=>({id:doc.id,title:doc.get('title'),stageType:doc.get('stageType')??null,updatedAt:doc.get('updatedAt').toMillis()}))});
   return true;
  }
  const match=req.path.match(/^\/stage\/plans\/([A-Za-z0-9]{20})$/);
  if(req.method==='GET'&&match){
   const doc=await plans.doc(match[1]).get();
   if(!doc.exists)fail(404,'図面が見つかりません。');
-  const {title,items,version}=doc.data();
-  res.json({id:doc.id,title,items,version});
+  const {title,items,version,stageType}=doc.data();
+  res.json({id:doc.id,title,items,version,...(stageType?{stageType}:{})});
   return true;
  }
  if(req.method==='POST'&&(req.path==='/stage/plans'||match)){
