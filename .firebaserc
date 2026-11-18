@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "urakata-app"
+  },
+  "targets": {
+    "urakata-app": {
+      "hosting": {
+        "portal": [
+          "urakata-app-portal"
+        ]
+      }
+    }
+  }
+}

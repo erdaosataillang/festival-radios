@@ -3,3 +3,4 @@ node_modules/
 /public/
 /receipt-backend/functions/kiwi-assets/
 /stage-hosting/
+.firebase/

@@ -1,0 +1,37 @@
+{
+  "hosting": [
+    {
+      "target": "portal",
+      "public": "public",
+      "predeploy": [
+        "node scripts/prepare-pages.mjs"
+      ],
+      "ignore": [
+        "firebase.json",
+        "CNAME",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "headers": [
+        {
+          "source": "/lmc/app/admin/**",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache, no-store, must-revalidate"
+            }
+          ]
+        },
+        {
+          "source": "**/*.{js,css,svg}",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=300, must-revalidate"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
