@@ -26,7 +26,7 @@ async function copyLmcAdmin(){
   await cp(join(source,'assets','lmc-wave-loader.svg'),join(output,'assets','lmc-wave-loader.svg'));
   await cp(join(source,'image-cache-sw.js'),join(output,'image-cache-sw.js'));
   await mkdir(join(output,'js'),{recursive:true});
-  for(const file of ['admin-common.js','error-reporter.js','line-firebase-auth.js','lmc-loader-transition.js']){
+  for(const file of ['admin-common.js','analytics.js','error-reporter.js','line-firebase-auth.js','lmc-loader-transition.js']){
     await cp(join(source,'js',file),join(output,'js',file));
   }
 }
