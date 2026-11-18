@@ -19,16 +19,21 @@ async function locateLmcSource(){
   return checkout;
 }
 
-async function copyLmcAdmin(){
+async function copyLmcApp(){
   const source=await locateLmcSource();
-  await cp(join(source,'admin'),join(output,'lmc','app','admin'),{recursive:true});
+  const appOutput=join(output,'lmc','app');
+  await mkdir(appOutput,{recursive:true});
+  for(const file of ['index.html','booking.html','manage.html','timetable.html','mypage.html','cue.html','userregist.html','newlmc.html','newmanage.html']){
+    await cp(join(source,file),join(appOutput,file));
+  }
+  await cp(join(source,'admin'),join(appOutput,'admin'),{recursive:true});
+  await cp(join(source,'js'),join(appOutput,'js'),{recursive:true});
+  await cp(join(source,'css'),join(appOutput,'css'),{recursive:true});
+  await cp(join(source,'assets'),join(appOutput,'assets'),{recursive:true});
   await cp(join(source,'css'),join(output,'css'),{recursive:true});
+  await cp(join(source,'js'),join(output,'js'),{recursive:true});
   await cp(join(source,'assets','lmc-wave-loader.svg'),join(output,'assets','lmc-wave-loader.svg'));
   await cp(join(source,'image-cache-sw.js'),join(output,'image-cache-sw.js'));
-  await mkdir(join(output,'js'),{recursive:true});
-  for(const file of ['admin-common.js','analytics.js','error-reporter.js','line-firebase-auth.js','lmc-loader-transition.js']){
-    await cp(join(source,'js',file),join(output,'js',file));
-  }
 }
 const apps=JSON.parse(await readFile(join(root,'apps.json'),'utf8'));
 const seen=new Set();
@@ -42,6 +47,6 @@ await rm(output,{recursive:true,force:true});await mkdir(output,{recursive:true}
 for(const name of ['index.html','apps.json','CNAME','assets'])await cp(join(root,name),join(output,name),{recursive:true});
 for(const app of apps)await cp(join(root,app.id),join(output,app.id),{recursive:true});
 await cp(join(root,'receipt-backend/functions/stage-catalog.json'),join(output,'stage-plan/catalog.json'));
-await copyLmcAdmin();
+await copyLmcApp();
 await writeFile(join(output,'.nojekyll'),'');
 console.log(`Prepared ${apps.length} apps: ${apps.map(app=>'/'+app.id+'/').join(', ')}`);

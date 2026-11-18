@@ -14,7 +14,7 @@
       ],
       "headers": [
         {
-          "source": "/lmc/app/admin/**",
+          "source": "/lmc/app/**",
           "headers": [
             {
               "key": "Cache-Control",
