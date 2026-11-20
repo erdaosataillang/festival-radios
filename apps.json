@@ -22,5 +22,19 @@
     "title": "ステージ図面",
     "description": "スピーカー・照明・トラスの配置図を作成",
     "icon": "stage"
+  },
+  {
+    "id": "lmc-admin",
+    "title": "LMCアプリ（管理）",
+    "description": "LMCアプリの管理画面",
+    "icon": "receipt",
+    "url": "https://app.urakatabu.com/lmc/app/admin"
+  },
+  {
+    "id": "urakata-cms",
+    "title": "裏方部CMS（HPの編集）",
+    "description": "公式ホームページの編集・管理",
+    "icon": "receipt",
+    "url": "https://admin.urakatabu.com"
   }
 ]

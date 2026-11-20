@@ -10,7 +10,8 @@ if (['radio','demo','view','auth_code','state'].some(key=>parameters.has(key))) 
     const apps=await response.json();
     const links=apps.map(app=>{
       if(!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(app.id))throw new Error('app path');
-      const link=document.createElement('a');link.className='app-link';link.href=`./${app.id}/`;
+      const link=document.createElement('a');link.className='app-link';link.href=app.url||`./${app.id}/`;
+      if(new URL(link.href).protocol!=='https:'&&app.url)throw new Error('app URL');
       const icon=document.createElement('span');icon.className='app-icon';icon.setAttribute('aria-hidden','true');icon.innerHTML=`<svg viewBox="0 0 24 24">${icons[app.icon]||icons.receipt}</svg>`;
       const text=document.createElement('span');text.className='app-text';const title=document.createElement('strong');title.textContent=app.title;
       const description=document.createElement('small');description.textContent=app.description;
@@ -18,6 +19,6 @@ if (['radio','demo','view','auth_code','state'].some(key=>parameters.has(key))) 
       text.append(title,description);link.append(icon,text,arrow);return link;
     });root.replaceChildren(...links);
   } catch {
-    root.replaceChildren();for(const [url,title] of [['festival-radios/','トランシーバー管理'],['recipt/','領収書'],['invoice/','請求書'],['stage-plan/','ステージ図面']]){const link=document.createElement('a');link.className='app-link';link.href=url;link.textContent=title;root.append(link);}
+    root.replaceChildren();for(const [url,title] of [['festival-radios/','トランシーバー管理'],['recipt/','領収書'],['invoice/','請求書'],['stage-plan/','ステージ図面'],['https://app.urakatabu.com/lmc/app/admin','LMCアプリ（管理）'],['https://admin.urakatabu.com','裏方部CMS（HPの編集）']]){const link=document.createElement('a');link.className='app-link';link.href=url;link.textContent=title;root.append(link);}
   }
 }
